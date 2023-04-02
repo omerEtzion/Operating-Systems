@@ -13,4 +13,14 @@
   sysproc.c
   memsize_test.c
   
------ task 3 -----
+----- task 3 -----    TODO: change all the calls to exit function in the user diractory?
+
+  proc.h -> added exit_msg field
+  sysproc.c -> sys_exit modified
+  proc.c -> p->exit_msg = msg
+  defs.h -> void  exit(int, char*),  int wait(uint64, uint64);
+  trap.c -> added argument whem calling exit function
+  user.h -> modified signature of wait and exit
+  goodbye.c
+  all files with exit/wait call
+

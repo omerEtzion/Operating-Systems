@@ -11,9 +11,15 @@ uint64
 sys_exit(void)
 {
   int n;
+  char msg[32];
+
   if(argint(0, &n) < 0)
     return -1;
-  exit(n);
+  
+  if(argstr(1, msg, 32) < 0)  // TODO change 32 to global var, 1 intead of 0
+    return -1;
+
+  exit(n, msg);
   return 0;  // not reached
 }
 
@@ -33,9 +39,15 @@ uint64
 sys_wait(void)
 {
   uint64 p;
+  uint64 msg_p;
+
   if(argaddr(0, &p) < 0)
     return -1;
-  return wait(p);
+
+  if(argaddr(1, &msg_p) < 0)
+    return -1;
+
+  return wait(p, msg_p);
 }
 
 uint64

@@ -3,6 +3,6 @@
 #include "kernel/fcntl.h"
 
 int main(int argc, char** argv){
-    fprintf(2, "Hello World xv6\n");
-    exit(0, "");
+
+    exit(0, "Goodbye World xv6\n");
 }

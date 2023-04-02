@@ -15,5 +15,5 @@ int main(int argc, char** argv){
     fprintf(2, "after freeing tha allocated memory -> memory in bytes: %d\n", memsize());
 
 
-    exit(0);
+    exit(0, "");
 }
