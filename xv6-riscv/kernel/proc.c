@@ -7,6 +7,7 @@
 #include "defs.h"
 
 long long LLONG_MAX = 9223372036854775807;
+// char c = 'a';
 
 struct cpu cpus[NCPU];
 
@@ -466,14 +467,16 @@ scheduler(void)
   struct cpu *c = mycpu();
   
   c->proc = 0;
+
+  struct proc* p_min;
+  long long acc;
+
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    p = 0; // 0 instead of NULL because we have no standard libraries
-
-    struct proc* p_min;
-    long long acc = LLONG_MAX;
+    p = proc; // 0 instead of NULL because we have no standard libraries
+    acc = LLONG_MAX;
 
     for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
       acquire(&p_min->lock);
@@ -484,8 +487,9 @@ scheduler(void)
       release(&p_min->lock);
     }
 
-    acquire(&p->lock);
-    if (p) { // if p != 0, then a RUNNABLE process was found and p was initialized
+    if (p->state == RUNNABLE) { // if p != 0, then a RUNNABLE process was found and p was initialized
+      acquire(&p->lock);
+
       // Switch to chosen process.  It is the process's job
       // to release its lock and then reacquire it
       // before jumping back to us.
@@ -496,8 +500,9 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+
+      release(&p->lock); 
     }
-    release(&p->lock);
 
     // for(p = proc; p < &proc[NPROC]; p++) {
     //   acquire(&p->lock);
