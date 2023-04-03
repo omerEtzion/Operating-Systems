@@ -6,23 +6,26 @@ int main(int argc, char** argv){
     int pid = fork();
 
     if (pid != 0) {
-        set_ps_priority(1);
+        // set_ps_priority(1);
         for (;;) {
-            fprintf(2, "1");
+            set_ps_priority(1);
+            // fprintf(2, "1");
         }
         
     } else {
         pid = fork();
 
         if (pid != 0) {
-            set_ps_priority(5);
+            // set_ps_priority(5);
             for (;;) {
-                fprintf(2, "2");
+                set_ps_priority(5);
+                // fprintf(2, "2");
             }
         } else {
-            set_ps_priority(10);
+            // set_ps_priority(10);
             for (;;) {
-                fprintf(2, "3");
+                set_ps_priority(10);
+                // fprintf(2, "3");
             }
         }
     }
