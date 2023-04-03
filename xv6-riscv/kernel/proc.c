@@ -6,6 +6,9 @@
 #include "proc.h"
 #include "defs.h"
 
+long long LLONG_MAX = 9223372036854775807;
+// char c = 'a';
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -140,6 +143,22 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  p->accumulator = LLONG_MAX;  // TODO: change to heap
+  int found_other_proc = 0;
+  struct proc* p_min;
+  for (p_min = proc; p_min < &proc[NPROC]; p_min++) {
+    if (p_min->state != UNUSED && p_min->accumulator < p->accumulator) {
+      found_other_proc = 1;
+      p->accumulator = p_min->accumulator;
+    }
+  }
+
+  if (found_other_proc == 0) {
+    p->accumulator = 0;
+  }
+  
+  p->ps_priority = 5;
 
   return p;
 }
@@ -444,30 +463,63 @@ wait(uint64 addr, uint64 msg_addr)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p; 
   struct cpu *c = mycpu();
   
   c->proc = 0;
+
+  struct proc* p_min;
+  long long acc;
+
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
+    p = proc; // 0 instead of NULL because we have no standard libraries
+    acc = LLONG_MAX;
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+    for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
+      acquire(&p_min->lock);
+      if(p_min->state == RUNNABLE && p_min->accumulator < acc) {
+        p = p_min;
+        acc = p_min->accumulator;
       }
-      release(&p->lock);
+      release(&p_min->lock);
     }
+
+    if (p->state == RUNNABLE) { // if p != 0, then a RUNNABLE process was found and p was initialized
+      acquire(&p->lock);
+
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      p->state = RUNNING;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+    
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+
+      release(&p->lock); 
+    }
+
+    // for(p = proc; p < &proc[NPROC]; p++) {
+    //   acquire(&p->lock);
+    //   if(p->state == RUNNABLE) {
+    //     // Switch to chosen process.  It is the process's job
+    //     // to release its lock and then reacquire it
+    //     // before jumping back to us.
+    //     p->state = RUNNING;
+    //     c->proc = p;
+    //     swtch(&c->context, &p->context);
+
+    //     // Process is done running for now.
+    //     // It should have changed its p->state before coming back.
+    //     c->proc = 0;
+    //   }
+    //   release(&p->lock);
+    // }
   }
 }
 
@@ -555,7 +607,7 @@ sleep(void *chan, struct spinlock *lk)
 
   // Tidy up.
   p->chan = 0;
-
+  
   // Reacquire original lock.
   release(&p->lock);
   acquire(lk);
@@ -572,6 +624,19 @@ wakeup(void *chan)
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
+        p->accumulator = LLONG_MAX;  // TODO: change to heap
+        int found_other_proc = 0;
+        struct proc* p_min;
+        for (p_min = proc; p_min < &proc[NPROC]; p_min++) {
+          if (p_min->state != UNUSED && p_min->accumulator < p->accumulator) {
+            found_other_proc = 1;
+            p->accumulator = p_min->accumulator;
+          }
+        }
+
+        if (found_other_proc == 0) {
+          p->accumulator = 0;
+        }
         p->state = RUNNABLE;
       }
       release(&p->lock);
@@ -592,6 +657,20 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       if(p->state == SLEEPING){
+        p->accumulator = LLONG_MAX;  // TODO: change to heap
+        int found_other_proc = 0;
+        struct proc* p_min;
+        for (p_min = proc; p_min < &proc[NPROC]; p_min++) {
+          if (p_min->state != UNUSED && p_min->accumulator < p->accumulator) {
+            found_other_proc = 1;
+            p->accumulator = p_min->accumulator;
+          }
+        }
+
+        if (found_other_proc == 0) {
+          p->accumulator = 0;
+        }
+
         // Wake process from sleep().
         p->state = RUNNABLE;
       }

@@ -105,6 +105,7 @@ extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_memsize(void);
+extern uint64 sys_set_ps_priority(void);
 
 
 static uint64 (*syscalls[])(void) = {
@@ -130,6 +131,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_memsize]   sys_memsize,
+[SYS_set_ps_priority] sys_set_ps_priority,
 };
 
 void

@@ -113,3 +113,20 @@ sys_memsize(void)
 {
    return myproc()->sz;
 }
+
+uint64
+sys_set_ps_priority(void)
+{
+  int n;
+
+  if(argint(0, &n) < 0 || n < 1 || n > 10)
+    return -1;
+
+  struct proc* p = myproc();
+  
+  acquire(&p->lock);
+  p->ps_priority = n;
+  release(&p->lock);
+
+  return 0;
+}
