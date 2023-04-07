@@ -330,6 +330,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->cfs_priority = p->cfs_priority;
   release(&np->lock);
 
   return pid;
@@ -469,7 +470,7 @@ scheduler(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
+    
     p = find_min_vruntime();
 
     if (p != 0 && p->state == RUNNABLE) { 
