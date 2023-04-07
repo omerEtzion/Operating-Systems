@@ -7,7 +7,6 @@
 #include "defs.h"
 
 long long LLONG_MAX = 9223372036854775807;
-char c = 'a';
 
 struct cpu cpus[NCPU];
 
@@ -144,23 +143,10 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  // p->accumulator = LLONG_MAX;  // TODO: change to heap
-  // int found_other_proc = 0;
-  // struct proc* p_min;
-  // for (p_min = proc; p_min < &proc[NPROC]; p_min++) {
-  //   if ((p_min->state == RUNNABLE || p_min->state == RUNNING) && p_min->accumulator < p->accumulator) {
-  //     found_other_proc = 1;
-  //     p->accumulator = p_min->accumulator;
-  //   }
-  // }
-
-  // if (found_other_proc == 0) {
-  //   p->accumulator = 0;
-  // }
-
+  release(&p->lock);
   struct proc* p_min = find_min_accumulator();
+  acquire(&p->lock);
 
-  printf("1p: %d", p);
   if (p_min == 0) {
     p->accumulator = 0;
   } else {
@@ -331,10 +317,6 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
-  // np->name[0] = c;
-  // np->name[1] = '\0';
-  // c += 1;
-
   pid = np->pid;
 
   release(&np->lock);
@@ -488,24 +470,10 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    // p = proc; // 0 instead of NULL because we have no standard libraries
-    // acc = LLONG_MAX;
-
-    // for (p_min = proc; p_min < &proc[NPROC]; p_min++) {    
-      
-    //   acquire(&p_min->lock);
-    //   if((p_min->state == RUNNABLE || p_min->state == RUNNING) && p_min->accumulator < acc) {
-    //     p = p_min;
-    //     acc = p_min->accumulator;
-    //   }
-    //   release(&p_min->lock);
-    // }
-
-    printf("aaaaaaaaaaaaaaaaaa");
     p = find_min_accumulator();
 
     if (p != 0 && p->state == RUNNABLE) { 
-      printf("2p: %d", p);
+      // printf("2p: %d", p);
       acquire(&p->lock);
 
       // Switch to chosen process.  It is the process's job
@@ -521,23 +489,6 @@ scheduler(void)
 
       release(&p->lock); 
     }
-
-    // for(p = proc; p < &proc[NPROC]; p++) {
-    //   acquire(&p->lock);
-    //   if(p->state == RUNNABLE) {
-    //     // Switch to chosen process.  It is the process's job
-    //     // to release its lock and then reacquire it
-    //     // before jumping back to us.
-    //     p->state = RUNNING;
-    //     c->proc = p;
-    //     swtch(&c->context, &p->context);
-
-    //     // Process is done running for now.
-    //     // It should have changed its p->state before coming back.
-    //     c->proc = 0;
-    //   }
-    //   release(&p->lock);
-    // }
   }
 }
 
@@ -642,22 +593,10 @@ wakeup(void *chan)
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
-        // p->accumulator = LLONG_MAX;  // TODO: change to heap
-        // int found_other_proc = 0;
-        // struct proc* p_min;
-        // for (p_min = proc; p_min < &proc[NPROC]; p_min++) {
-        //   if ((p_min->state == RUNNABLE || p_min->state == RUNNING) && p_min->accumulator < p->accumulator) {
-        //     found_other_proc = 1;
-        //     p->accumulator = p_min->accumulator;
-        //   }
-        // }
-
-        // if (found_other_proc == 0) {
-        //   p->accumulator = 0;
-        // }
-
+        release(&p->lock);
         struct proc* p_min = find_min_accumulator();
-        printf("3p: %d", p);
+        acquire(&p->lock);
+
         if (p_min == 0) {
           p->accumulator = 0;
         } else {
@@ -684,22 +623,10 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       if(p->state == SLEEPING){
-        // p->accumulator = LLONG_MAX;  // TODO: change to heap
-        // int found_other_proc = 0;
-        // struct proc* p_min;
-        // for (p_min = proc; p_min < &proc[NPROC]; p_min++) {
-        //   if ((p_min->state == RUNNABLE || p_min->state == RUNNING) && p_min->accumulator < p->accumulator) {
-        //     found_other_proc = 1;
-        //     p->accumulator = p_min->accumulator;
-        //   }
-        // }
-
-        // if (found_other_proc == 0) {
-        //   p->accumulator = 0;
-        // }
-
+        release(&p->lock);
         struct proc* p_min = find_min_accumulator();
-        printf("4p: %d", p);
+        acquire(&p->lock);
+
         if (p_min == 0) {
           p->accumulator = 0;
         } else {
@@ -786,7 +713,6 @@ find_min_accumulator(void)
   
   struct proc* p_min;
   for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
-    printf("p_min: %d", p_min);
     acquire(&p_min->lock);
     if((p_min->state == RUNNABLE || p_min->state == RUNNING) && p_min->accumulator < acc) {
       p = p_min;
