@@ -130,3 +130,42 @@ sys_set_ps_priority(void)
 
   return 0;
 }
+
+uint64
+sys_set_cfs_priority(void)
+{
+  int n;
+  if(argint(0, &n) < 0 || n < 0 || n > 2)
+    return -1;
+
+  struct  proc* p;
+
+
+
+  acquire(&p->lock);
+  p->cfs_priority = n;
+  release(&p->lock);
+  
+  return 0;
+}
+
+uint64
+sys_get_cfs_stats(void)
+{
+  int pid;
+
+  if (argint(0, &pid) < 0)
+    return -1;
+
+  struct proc* p = get_proc_by_pid(pid);
+  
+  acquire(&p->lock);
+  struct cfs_stats* cs;
+  cs->cfs_priority = p->cfs_priority;
+  cs->rtime = p->rtime;
+  cs->stime = p->stime;
+  cs->retime = p->retime;
+  release(&p->lock);
+  
+  return cs;
+}
