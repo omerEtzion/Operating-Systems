@@ -157,6 +157,10 @@ found:
   }
   
   p->ps_priority = 5;
+  p->cfs_priority = 1;
+  p->rtime = 0;
+  p->stime = 0;
+  p->retime = 0;
 
   return p;
 }
@@ -331,6 +335,9 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   np->cfs_priority = p->cfs_priority;
+  np->rtime = p->rtime;
+  np->stime = p->stime;
+  np->retime = p->retime;
   release(&np->lock);
 
   return pid;
@@ -725,7 +732,7 @@ find_min_accumulator(void)
   return p;
 }
 
-// Helper function that finds the RUNNABLE procedure with the lowest vruntime.
+// Helper function that finds the RUNNABLE/RUNNING procedure with the lowest vruntime.
 // Returns 0 if there are no RUNNABLE processes.
 struct proc*
 find_min_vruntime(void)
@@ -736,13 +743,16 @@ find_min_vruntime(void)
   struct proc* p_min;
   for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
     acquire(&p_min->lock);
-    if(p_min->state == RUNNABLE) {
+    if(p_min->state == RUNNABLE || p_min->state == RUNNING) {
       int cfs_priority = p_min->cfs_priority;
       int rtime = p_min->rtime;
       int stime = p_min->stime;
       int retime = p_min->retime; 
 
-      int vruntime = decay_factors[cfs_priority] * rtime / (rtime + stime +retime);
+      int vruntime = 0;
+      if (rtime != 0) {
+        vruntime = decay_factors[cfs_priority] * rtime / (rtime + stime +retime);
+      } 
 
       if (vruntime < min_vruntime) {
         p = p_min;
@@ -755,6 +765,7 @@ find_min_vruntime(void)
   return p;
 }
 
+// Gets a procedure by its pid
 struct proc*
 get_proc_by_pid(int pid)
 {
@@ -767,5 +778,20 @@ get_proc_by_pid(int pid)
   return 0;
 }
 
-//TODO: 
-// use that to update the scheduler
+// Updates the rtime/stime/retime of each procedure in the proc list
+void
+update_times()
+{
+  struct proc* p;
+  for(p = proc; p < &proc[NPROC]; p++) {      
+    acquire(&p->lock);
+    if (p->state == SLEEPING) {
+      p->stime++;
+    } else if (p->state == RUNNING) {
+      p->rtime++;
+    } else if (p->state == RUNNABLE) {
+      p->retime++;
+    }
+    release(&p->lock);  
+  }
+}

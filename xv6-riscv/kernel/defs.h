@@ -107,6 +107,7 @@ void            procdump(void);
 struct proc*    find_min_accumulator(void);
 struct proc*    find_min_vruntime(void);
 struct proc*    get_proc_by_pid(int pid);
+void            update_times(void);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

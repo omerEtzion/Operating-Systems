@@ -151,19 +151,28 @@ uint64
 sys_get_cfs_stats(void)
 {
   int pid;
-  // struct cfs_stats* cs;
-  uint64 cs;
+  uint64 cfs_priority;
+  uint64 rtime;
+  uint64 stime;
+  uint64 retime; 
 
-  if (argint(0, &pid) < 0 || argaddr(1, &cs) < 0)
+  if (argint(0, &pid) < 0 || argaddr(1, &cfs_priority) < 0 || argaddr(2, &rtime) < 0 || argaddr(3, &stime) < 0 || argaddr(4, &retime) < 0)
     return -1;
 
   struct proc* p = get_proc_by_pid(pid);
+  printf("after2\n");
+
   
   acquire(&p->lock);
-  ((struct cfs_stats*)cs)->cfs_priority = p->cfs_priority;
-  ((struct cfs_stats*)cs)->rtime = p->rtime;
-  ((struct cfs_stats*)cs)->stime = p->stime;
-  ((struct cfs_stats*)cs)->retime = p->retime;
+  printf("%d, %d, %d, %d, %d\n", myproc()->pid, cfs_priority, rtime, stime, retime);
+  *((int*)cfs_priority) = p->cfs_priority;
+  printf("2\n");
+  *((int*)rtime) = p->rtime;
+  printf("3\n");
+  *((int*)stime) = p->stime;
+  printf("4\n");
+  *((int*)retime) = p->retime;
+  printf("5\n");
   release(&p->lock);
   
   return 0;
