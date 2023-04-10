@@ -160,19 +160,16 @@ sys_get_cfs_stats(void)
     return -1;
 
   struct proc* p = get_proc_by_pid(pid);
-  printf("after2\n");
-
   
   acquire(&p->lock);
-  printf("%d, %d, %d, %d, %d\n", myproc()->pid, cfs_priority, rtime, stime, retime);
-  *((int*)cfs_priority) = p->cfs_priority;
-  printf("2\n");
-  *((int*)rtime) = p->rtime;
-  printf("3\n");
-  *((int*)stime) = p->stime;
-  printf("4\n");
-  *((int*)retime) = p->retime;
-  printf("5\n");
+  if ((cfs_priority != 0 && copyout(myproc()->pagetable, cfs_priority, (char *)&p->cfs_priority, sizeof(int)) < 0) ||
+      (rtime != 0 && copyout(myproc()->pagetable, rtime, (char *)&p->rtime, sizeof(int)) < 0) ||
+      (stime != 0 && copyout(myproc()->pagetable, stime, (char *)&p->stime, sizeof(int)) < 0) ||
+      (retime != 0 && copyout(myproc()->pagetable, retime, (char *)&p->retime, sizeof(int)) < 0))
+  {
+    release(&p->lock);
+    return -1;
+  }
   release(&p->lock);
   
   return 0;
