@@ -174,3 +174,14 @@ sys_get_cfs_stats(void)
   
   return 0;
 }
+
+uint64
+sys_set_policy(void)
+{
+  int policy;
+  if (argint(0, &policy) < 0)
+    return -1;
+
+  set_policy(policy);
+  return 0;
+}

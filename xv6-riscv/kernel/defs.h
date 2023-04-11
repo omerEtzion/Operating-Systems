@@ -104,10 +104,13 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
-struct proc*    find_min_accumulator(void);
-struct proc*    find_min_vruntime(void);
+struct proc*    find_next_proc_ps(void);
+struct proc*    find_next_proc_cfs(void);
+struct proc*    find_next_proc_round_robin(void);
+void            round_robin(void);
 struct proc*    get_proc_by_pid(int pid);
 void            update_times(void);
+void            set_policy(int policy);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

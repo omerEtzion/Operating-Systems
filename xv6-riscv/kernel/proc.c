@@ -9,11 +9,15 @@
 long long MAX_LLONG = 9223372036854775807;
 int MAX_INT = 2147483647;
 
+int sched_policy = 0;
+struct proc* (*find_next_proc_funcs[])() = {find_next_proc_round_robin, find_next_proc_ps, find_next_proc_cfs};
+
 int decay_factors[] = {75, 100, 125};
 
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
+struct proc* last_proc_chosen = proc;
 
 struct proc *initproc;
 
@@ -147,7 +151,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   release(&p->lock);
-  struct proc* p_min = find_min_accumulator();
+  struct proc* p_min = find_next_proc_ps();
   acquire(&p->lock);
 
   if (p_min == 0) {
@@ -469,33 +473,38 @@ wait(uint64 addr, uint64 msg_addr)
 void
 scheduler(void)
 {
-  struct proc *p; 
+  struct proc *p = proc; 
   struct cpu *c = mycpu();
   
   c->proc = 0;
 
   for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
-    intr_on();
-    
-    p = find_min_vruntime();
 
-    if (p != 0 && p->state == RUNNABLE) { 
-      // printf("2p: %d", p);
-      acquire(&p->lock);
+    if (sched_policy == 0) {
+      round_robin();
+    } else {
+      // Avoid deadlock by ensuring that devices can interrupt.
+      intr_on();
 
-      // Switch to chosen process.  It is the process's job
-      // to release its lock and then reacquire it
-      // before jumping back to us.
-      p->state = RUNNING;
-      c->proc = p;
-      swtch(&c->context, &p->context);
-    
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+      p = find_next_proc_funcs[sched_policy]();
+      last_proc_chosen = p;
+      // printf("%d, %d\n", proc, p);
 
-      release(&p->lock); 
+      if (p != 0) {
+        acquire(&p->lock);
+        if (p->state == RUNNABLE) { 
+          // Switch to chosen process.  It is the process's job
+          // to release its lock and then reacquire it
+          // before jumping back to us.
+          p->state = RUNNING;
+          c->proc = p;
+          swtch(&c->context, &p->context);
+          // Process is done running for now.
+          // It should have changed its p->state before coming back.
+          c->proc = 0;
+        }
+        release(&p->lock); 
+      }
     }
   }
 }
@@ -602,7 +611,7 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         release(&p->lock);
-        struct proc* p_min = find_min_accumulator();
+        struct proc* p_min = find_next_proc_ps();
         acquire(&p->lock);
 
         if (p_min == 0) {
@@ -632,7 +641,7 @@ kill(int pid)
       p->killed = 1;
       if(p->state == SLEEPING){
         release(&p->lock);
-        struct proc* p_min = find_min_accumulator();
+        struct proc* p_min = find_next_proc_ps();
         acquire(&p->lock);
 
         if (p_min == 0) {
@@ -714,7 +723,7 @@ procdump(void)
 // Helper function that finds the RUNNING/RUNNABLE procedure with the lowest accumulator.
 // Returns 0 if there are no RUNNING/RUNNABLE processes.
 struct proc*
-find_min_accumulator(void)
+find_next_proc_ps(void)
 {
   struct proc* p = 0; // 0 instead of NULL because we have no standard libraries
   long long acc = MAX_LLONG;
@@ -735,7 +744,7 @@ find_min_accumulator(void)
 // Helper function that finds the RUNNABLE/RUNNING procedure with the lowest vruntime.
 // Returns 0 if there are no RUNNABLE processes.
 struct proc*
-find_min_vruntime(void)
+find_next_proc_cfs(void)
 {
   struct proc* p = 0; // 0 instead of NULL because we have no standard libraries
   int min_vruntime = MAX_INT;
@@ -763,6 +772,68 @@ find_min_vruntime(void)
   }
 
   return p;
+}
+
+struct proc*
+find_next_proc_round_robin(void)
+{
+  struct proc* p = last_proc_chosen;
+
+  // if(p != 0)
+  //   printf("%s %d\n", p->name, p);
+
+  enum procstate state = RUNNING;
+  while(state != RUNNABLE) {
+    
+    if (p == 0 || p == &proc[NPROC - 1]) {
+      // printf("1 %d\n", p);
+      p = &proc[0];
+    } else {
+      // printf("2 %d\n", p);
+      p += sizeof(struct proc);
+    }
+
+    // printf("%s %d\n", p->name, state);
+
+    acquire(&p->lock);
+    state = p->state;
+    release(&p->lock);
+  }
+  // printf("name: %s\n", p->name);
+  return p;
+}
+
+void
+round_robin(void)
+{
+  struct proc* p;
+  struct cpu *c = mycpu();
+
+  for(;;){
+    // Avoid deadlock by ensuring that devices can interrupt.
+    intr_on();
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+
+      if (sched_policy != 0)
+        return;
+
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        // Switch to chosen process.  It is the process's job
+        // to release its lock and then reacquire it
+        // before jumping back to us.
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+      }
+      release(&p->lock);
+    }
+  }
 }
 
 // Gets a procedure by its pid
@@ -794,4 +865,12 @@ update_times()
     }
     release(&p->lock);  
   }
+}
+
+void
+set_policy(int policy)
+{
+  printf("old policy: %d\n", sched_policy);
+  sched_policy = policy;
+  printf("new policy: %d\n", sched_policy);
 }
