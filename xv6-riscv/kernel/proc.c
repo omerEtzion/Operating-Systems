@@ -738,12 +738,12 @@ struct proc*
 find_min_vruntime(void)
 {
   struct proc* p = 0; // 0 instead of NULL because we have no standard libraries
-  long long min_vruntime = MAX_INT;
+  int min_vruntime = MAX_INT;
   
   struct proc* p_min;
   for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
     acquire(&p_min->lock);
-    if(p_min->state == RUNNABLE || p_min->state == RUNNING) {
+    if(p_min->state == RUNNABLE) {
       int cfs_priority = p_min->cfs_priority;
       int rtime = p_min->rtime;
       int stime = p_min->stime;
