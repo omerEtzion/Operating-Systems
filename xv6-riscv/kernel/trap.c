@@ -173,6 +173,7 @@ clockintr()
 {
   acquire(&tickslock);
   ticks++;
+  update_times();
   wakeup(&ticks);
   release(&tickslock);
 }

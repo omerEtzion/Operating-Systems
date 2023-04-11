@@ -6,7 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
-long long LLONG_MAX = 9223372036854775807;
+long long MAX_LLONG = 9223372036854775807;
+int MAX_INT = 2147483647;
+
+int decay_factors[] = {75, 100, 125};
 
 struct cpu cpus[NCPU];
 
@@ -154,6 +157,10 @@ found:
   }
   
   p->ps_priority = 5;
+  p->cfs_priority = 1;
+  p->rtime = 0;
+  p->stime = 0;
+  p->retime = 0;
 
   return p;
 }
@@ -327,6 +334,10 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  np->cfs_priority = p->cfs_priority;
+  np->rtime = p->rtime;
+  np->stime = p->stime;
+  np->retime = p->retime;
   release(&np->lock);
 
   return pid;
@@ -463,14 +474,11 @@ scheduler(void)
   
   c->proc = 0;
 
-  // struct proc* p_min;
-  // long long acc;
-
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
-    p = find_min_accumulator();
+    
+    p = find_min_vruntime();
 
     if (p != 0 && p->state == RUNNABLE) { 
       // printf("2p: %d", p);
@@ -709,7 +717,7 @@ struct proc*
 find_min_accumulator(void)
 {
   struct proc* p = 0; // 0 instead of NULL because we have no standard libraries
-  long long acc = LLONG_MAX;
+  long long acc = MAX_LLONG;
   
   struct proc* p_min;
   for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
@@ -722,4 +730,68 @@ find_min_accumulator(void)
   }
 
   return p;
+}
+
+// Helper function that finds the RUNNABLE/RUNNING procedure with the lowest vruntime.
+// Returns 0 if there are no RUNNABLE processes.
+struct proc*
+find_min_vruntime(void)
+{
+  struct proc* p = 0; // 0 instead of NULL because we have no standard libraries
+  int min_vruntime = MAX_INT;
+  
+  struct proc* p_min;
+  for(p_min = proc; p_min < &proc[NPROC]; p_min++) {      
+    acquire(&p_min->lock);
+    if(p_min->state == RUNNABLE) {
+      int cfs_priority = p_min->cfs_priority;
+      int rtime = p_min->rtime;
+      int stime = p_min->stime;
+      int retime = p_min->retime; 
+
+      int vruntime = 0;
+      if (rtime != 0) {
+        vruntime = decay_factors[cfs_priority] * rtime / (rtime + stime +retime);
+      } 
+
+      if (vruntime < min_vruntime) {
+        p = p_min;
+        min_vruntime = vruntime;
+      }
+    }
+    release(&p_min->lock);
+  }
+
+  return p;
+}
+
+// Gets a procedure by its pid
+struct proc*
+get_proc_by_pid(int pid)
+{
+  struct proc* p;
+  for(p = proc; p < &proc[NPROC]; p++) {      
+    if(p->pid == pid)
+      return p;
+  }
+
+  return 0;
+}
+
+// Updates the rtime/stime/retime of each procedure in the proc list
+void
+update_times()
+{
+  struct proc* p;
+  for(p = proc; p < &proc[NPROC]; p++) {      
+    acquire(&p->lock);
+    if (p->state == SLEEPING) {
+      p->stime++;
+    } else if (p->state == RUNNING) {
+      p->rtime++;
+    } else if (p->state == RUNNABLE) {
+      p->retime++;
+    }
+    release(&p->lock);  
+  }
 }

@@ -106,8 +106,16 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 
-  char exit_msg[32]; // Task 3
+  // Task 3:
+  char exit_msg[32]; 
 
-  long long accumulator; // Task 5
-  int ps_priority; // Task 5
+  // Task 5:
+  long long accumulator; 
+  int ps_priority; 
+
+   // Task 6:
+  int cfs_priority;
+  int rtime;
+  int stime;
+  int retime;
 };

@@ -130,3 +130,47 @@ sys_set_ps_priority(void)
 
   return 0;
 }
+
+uint64
+sys_set_cfs_priority(void)
+{
+  int n;
+  if(argint(0, &n) < 0 || n < 0 || n > 2)
+    return -1;
+
+  struct  proc* p = myproc();
+
+  acquire(&p->lock);
+  p->cfs_priority = n;
+  release(&p->lock);
+  
+  return 0;
+}
+
+uint64
+sys_get_cfs_stats(void)
+{
+  int pid;
+  uint64 cfs_priority;
+  uint64 rtime;
+  uint64 stime;
+  uint64 retime; 
+
+  if (argint(0, &pid) < 0 || argaddr(1, &cfs_priority) < 0 || argaddr(2, &rtime) < 0 || argaddr(3, &stime) < 0 || argaddr(4, &retime) < 0)
+    return -1;
+
+  struct proc* p = get_proc_by_pid(pid);
+  
+  acquire(&p->lock);
+  if ((cfs_priority != 0 && copyout(myproc()->pagetable, cfs_priority, (char *)&p->cfs_priority, sizeof(int)) < 0) ||
+      (rtime != 0 && copyout(myproc()->pagetable, rtime, (char *)&p->rtime, sizeof(int)) < 0) ||
+      (stime != 0 && copyout(myproc()->pagetable, stime, (char *)&p->stime, sizeof(int)) < 0) ||
+      (retime != 0 && copyout(myproc()->pagetable, retime, (char *)&p->retime, sizeof(int)) < 0))
+  {
+    release(&p->lock);
+    return -1;
+  }
+  release(&p->lock);
+  
+  return 0;
+}
