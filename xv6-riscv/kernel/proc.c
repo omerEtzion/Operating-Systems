@@ -9,7 +9,7 @@
 long long MAX_LLONG = 9223372036854775807;
 int MAX_INT = 2147483647;
 
-int sched_policy = 0;
+int sched_policy = 2;
 struct proc* (*find_next_proc_funcs[])() = {find_next_proc_round_robin, find_next_proc_ps, find_next_proc_cfs};
 
 int decay_factors[] = {75, 100, 125};
@@ -811,9 +811,7 @@ round_robin(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
     for(p = proc; p < &proc[NPROC]; p++) {
-
       if (sched_policy != 0)
         return;
 
