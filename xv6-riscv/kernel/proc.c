@@ -388,17 +388,17 @@ exit(int status, char* msg)
   p->cwd = 0;
 
   acquire(&wait_lock);
-
+  
   // Give any children to init.
   reparent(p);
-
   // Parent might be sleeping in wait().
   wakeup(p->parent);
   
   acquire(&p->lock);
-
+  
   p->xstate = status;
   p->state = ZOMBIE;
+  
   // p->exit_msg = msg;
   int i;
     for (i = 0; i < sizeof(p->exit_msg) && msg[i] != '\0'; i++) {
@@ -521,7 +521,6 @@ sched(void)
 {
   int intena;
   struct proc *p = myproc();
-
   if(!holding(&p->lock))
     panic("sched p->lock");
   if(mycpu()->noff != 1)
