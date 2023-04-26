@@ -45,3 +45,6 @@ enum sched_priority uthread_set_priority(enum sched_priority priority);
 enum sched_priority uthread_get_priority();
 
 struct uthread* uthread_self();
+
+struct uthread* find_next_uthread();
+void context_swtch(struct uthread* next_uthread);
