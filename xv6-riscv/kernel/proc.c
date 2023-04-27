@@ -86,7 +86,7 @@ myproc(void)
 {
   push_off();
   struct cpu *c = mycpu();
-  struct proc *p = c->proc;
+  struct proc *p = c->kthread->proc;
   pop_off();
   return p;
 }
@@ -124,6 +124,8 @@ allocproc(void)
   return 0;
 
 found:
+  p->nextktid = 1;
+
   p->pid = allocpid();
   p->state = USED;
 
@@ -134,6 +136,8 @@ found:
     return 0;
   }
 
+  allockthread(p);
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -142,16 +146,6 @@ found:
     return 0;
   }
 
-
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&p->context, 0, sizeof(p->context));
-  p->context.ra = (uint64)forkret;
-  p->context.sp = p->kstack + PGSIZE;
-
-
-  // TODO: delte this after you are done with task 2.2
-  allocproc_help_function(p);
   return p;
 }
 
@@ -161,6 +155,10 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  struct kthread* kt;
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    freekthread(kt);
+  }
   if(p->base_trapframes)
     kfree((void*)p->base_trapframes);
   p->base_trapframes = 0;
@@ -251,12 +249,12 @@ userinit(void)
   // prepare for the very first "return" from kernel to user.
   p->kthread[0].trapframe->epc = 0;      // user program counter
   p->kthread[0].trapframe->sp = PGSIZE;  // user stack pointer
+  p->kthread[0].state = RUNNABLE;
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  p->state = RUNNABLE;
-
+  release(&p->kthread[0].lock);
   release(&p->lock);
 }
 
@@ -295,19 +293,22 @@ fork(void)
     return -1;
   }
 
+  struct kthread* nkt = &np->kthread[0];
+
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
+    release(&nkt->lock);
     release(&np->lock);
     return -1;
   }
   np->sz = p->sz;
 
   // copy saved user registers.
-  *(np->kthread[0].trapframe) = *(kt->trapframe);
+  *(nkt->trapframe) = *(kt->trapframe);
 
   // Cause fork to return 0 in the child.
-  np->kthread[0].trapframe->a0 = 0;
+  nkt->trapframe->a0 = 0;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -319,6 +320,7 @@ fork(void)
 
   pid = np->pid;
 
+  release(&nkt->lock);
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -326,7 +328,9 @@ fork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
-  np->state = RUNNABLE;
+  acquire(&nkt->lock);
+  nkt->state = RUNNABLE;
+  release(&nkt->lock);
   release(&np->lock);
 
   return pid;

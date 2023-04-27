@@ -20,21 +20,15 @@ struct context {
   uint64 s11;
 };
 
-// Per-CPU state.
-struct cpu {
-  struct proc *proc;          // The process running on this cpu, or null.
-  struct context context;     // swtch() here to enter scheduler().
-  int noff;                   // Depth of push_off() nesting.
-  int intena;                 // Were interrupts enabled before push_off()?
-};
-
-extern struct cpu cpus[NCPU];
-
 enum procstate { UNUSED, USED, ZOMBIE };
 
 // Per-process state
 struct proc {
   struct spinlock lock;
+
+  // lock and counter for creating unique ktids
+  struct spinlock ktid_lock;
+  int nextktid;
 
   // p->lock must be held when using these:
   enum procstate state;        // Process state
@@ -52,7 +46,7 @@ struct proc {
   // these are private to the process, so p->lock need not be held.
   uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // User page table
-  struct context context;      // swtch() here to run process
+  // struct context context;      // swtch() here to run process
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
