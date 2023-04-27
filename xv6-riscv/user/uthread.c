@@ -24,23 +24,12 @@ int uthread_create(void (*start_func)(), enum sched_priority priority) {
     // initialize the thread table entries
     uthreads[free_entry].priority = priority;
 
-    // // allocate a new stack for the thread
-    // void *ustack = malloc(STACK_SIZE);
-
-    // // failed to allocate memory for the stack
-    // if (ustack == 0) {
-    //     uthreads[free_entry].state = FREE;
-    //     return -1;
-    // }
-    // uthreads[free_entry].ustack = (char*)ustack;
-
-    // ***** no need to allocate a new stack, the stack is statically allocated to the struct uthread
-    // ***** instead, just set the sp to the top (last address) of the stack
-
-
-    // set the 'ra' register to the start_func and 'sp' to the top of the relevant ustack
+    // set the 'sp' register to the top of the relevant ustack
     uthreads[free_entry].context.sp = uthreads[free_entry].ustack + STACK_SIZE - 1;
-    uthreads[free_entry].context.ra = (uint64)start_func;
+
+    // set the start_func field of the thread's struct and set the 'ra' register to start_func_wrapper
+    uthreads[free_entry].start_func = start_func;
+    uthreads[free_entry].context.ra = (uint64)start_func_wrapper;
 
     // set as RUNNABLE
     uthreads[free_entry].state = RUNNABLE;
@@ -50,28 +39,6 @@ int uthread_create(void (*start_func)(), enum sched_priority priority) {
     // Hint: A uthread_exit(…) call should be carried out explicitly at the end of
     // each given start_func(…) .
 }
-
-// void uthread_yield() {
-//     int i;
-//     struct uthread* next_uthread = 0;
-
-//     // find next thread
-//     for (i = 0; i < MAX_UTHREADS; i++) {
-//         if (uthreads[i].state == RUNNABLE && (next_uthread == 0 || uthreads[i].priority > next_uthread->priority)) {
-//             next_uthread = &uthreads[i];
-//         }
-//     }
-
-//     if (next_uthread != 0) {
-//         struct uthread* prev_thread = current_uthread;
-
-//         // update the current thread pointer
-//         current_uthread = next_uthread;
-
-//         // save the context of the current thread and switch to the next thread
-//         uswtch(&prev_thread->context, &current_uthread->context);
-//     }
-// }
 
 void uthread_yield() {
     current_uthread->state = RUNNABLE;
@@ -83,33 +50,7 @@ void uthread_yield() {
     } else {
         current_uthread->state = RUNNING;
     }
-
-    // this is the code if a uthread of higher priority does not yield to a uthread of lower priority
-    // if (next_uthread != current_uthread) {
-    //     next_uthread->state = RUNNING;
-    //     context_swtch(next_uthread);
-    // } else {
-    //     current_uthread->state = RUNNING;
-    // }
 }
-
-// void uthread_exit() {
-//     current_uthread->state = FREE;
-//     int num_free_threads = 0;
-//     int i;
-//     for (i = 0; i < MAX_UTHREADS; i++) {
-//         if (uthreads[i].state == FREE) {
-//             num_free_threads++;
-//         }
-//     }
-//     if (num_free_threads == MAX_UTHREADS)
-//         exit(0);
-    
-//     else
-//         uthread_yield();
-
-//     // TODO -> maybe too loop over threads array and look for threads[i] == RUNNABLE and then call uswtch (might be nore efficient)
-// }
 
 void uthread_exit() {
     current_uthread->state = FREE;
@@ -121,13 +62,6 @@ void uthread_exit() {
     } else {
         exit(0);
     }
-
-    // this is the code if a uthread of higher priority does not yield to a uthread of lower priority
-    // if (next_uthread != current_uthread) {
-    //     context_swtch(next_uthread);
-    // } else {
-    //     exit(0);
-    // }
 }
 
 enum sched_priority uthread_set_priority(enum sched_priority priority){
@@ -151,11 +85,6 @@ int uthread_start_all(){
         if (next_uthread != 0) {
             context_swtch(next_uthread);
         }
-
-        // this is the code if a uthread of higher priority does not yield to a uthread of lower priority
-        // if (next_uthread != current_uthread) {
-        //     context_swtch(next_uthread);
-        // }
     }
 
     return -1;
@@ -164,20 +93,6 @@ int uthread_start_all(){
 struct uthread* uthread_self(){
     return current_uthread;
 }
-
-// struct uthread* find_next_uthread(){
-//     int i;
-//     struct uthread* next_uthread = 0;
-
-//     // find next thread
-//     for (i = 0; i < MAX_UTHREADS; i++) {
-//         if (uthreads[i].state == RUNNABLE && (next_uthread == 0 || uthreads[i].priority > next_uthread->priority)) {
-//             next_uthread = &uthreads[i];
-//         }
-//     }
-
-//     return next_uthread;
-// }
 
 struct uthread* find_next_uthread(){
     struct uthread* uthread_iter;
@@ -206,29 +121,6 @@ struct uthread* find_next_uthread(){
     }
 
     return next_uthread;
-
-    // ***** right now, even if the current_uthread is the highest priority, it will yield its time to a lower priority uthread when calling uthread_yield
-    // should it be like this? if not, this is the correct code:
-
-    // struct uthread* next_uthread = current_uthread;
-
-    // while (uthread_iter != current_uthread) {
-    //     if (uthread_iter == &uthreads[MAX_UTHREADS]) {
-    //         uthread_iter = &uthreads[0];
-    //     }
-
-    //     if (uthread_iter->state == RUNNABLE && (uthread_iter->priority > next_uthread->priority || (uthread_iter->priority == next_uthread->priority && next_uthread == current_uthread))) {
-    //         // if uthread_iter is of higher priority, or if it's the first uthread we found of equal priority (for the round robin)
-    //         next_uthread = uthread_iter;
-    //     }
-        
-    //     uthread_iter += sizeof(struct uthread);
-    // }
-
-    // return next_uthread;
-
-    // and then, if this function returns current_uthread instead of 0, we know that there are no higher priority uthreads
-
 }
 
 void context_swtch(struct uthread* next_uthread){
@@ -239,4 +131,10 @@ void context_swtch(struct uthread* next_uthread){
 
     // save the context of the current thread and switch to the next thread
     uswtch(&prev_thread->context, &current_uthread->context);
+}
+
+void start_func_wrapper() {
+    // a wrapper function for start_func that calls uthread_exit after start_func finishes
+    uthread_self()->start_func();
+    uthread_exit();
 }
