@@ -50,10 +50,24 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+enum kthreadstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+
 struct kthread
 {
+  struct spinlock lock;
 
-  uint64 kstack;                // Virtual address of kernel stack
+  // kt->lock must be held when using these:
+  enum kthreadstate state;      // kthread state
+  void *chan;                   // If non-zero, sleeping on chan
+  int killed;                   // If non-zero, have been killed
+  int xstate;                   // Exit status to be returned to parent's wait
+  int ktid;                     // kthread ID
 
-  struct trapframe *trapframe;  // data page for trampoline.S
+  // wait_lock must be held when using this:
+  struct proc *proc;         // Parent process
+
+  // these are private to the kthread, so kt->lock need not be held.
+  uint64 kstack;               // Virtual address of kernel stack
+  struct context context;      // swtch() here to run kthread
+  struct trapframe *trapframe; // data page for trampoline.S
 };
