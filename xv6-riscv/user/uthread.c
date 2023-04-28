@@ -25,7 +25,7 @@ int uthread_create(void (*start_func)(), enum sched_priority priority) {
     uthreads[free_entry].priority = priority;
 
     // set the 'sp' register to the top of the relevant ustack
-    uthreads[free_entry].context.sp = uthreads[free_entry].ustack + STACK_SIZE - 1;
+    uthreads[free_entry].context.sp = (uint64)uthreads[free_entry].ustack + STACK_SIZE - 1;
 
     // set the start_func field of the thread's struct and set the 'ra' register to start_func_wrapper
     uthreads[free_entry].start_func = start_func;

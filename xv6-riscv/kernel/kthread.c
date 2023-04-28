@@ -15,7 +15,7 @@ void kthreadinit(struct proc *p)
   for (struct kthread *kt = p->kthread; kt < &p->kthread[NKT]; kt++)
   {
     initlock(&kt->lock, "kthread");
-    kt->state = UNUSED;
+    kt->state = KT_UNUSED;
     kt->proc = p;
 
     // WARNING: Don't change this line!
@@ -50,14 +50,14 @@ allocktid(struct proc *p)
 // If found, initialize state required to run in the kernel,
 // and return with kt->lock held.
 // If there are no free kthreads, return 0.
-static struct kthread*
+struct kthread*
 allockthread(struct proc* p)
 {
   struct kthread *kt;
 
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     acquire(&kt->lock);
-    if(kt->state == UNUSED) {
+    if(kt->state == KT_UNUSED) {
       goto found;
     } else {
       release(&kt->lock);
@@ -67,7 +67,7 @@ allockthread(struct proc* p)
 
 found:
   kt->ktid = allocktid(p);
-  kt->state = USED;
+  kt->state = KT_USED;
 
   // Assign a trapframe page.
   kt->trapframe = get_kthread_trapframe(p, kt);
@@ -84,10 +84,10 @@ found:
 // free a kthread structure and the data hanging from it,
 // including user pages.
 // kt->lock must be held.
-static void
+void
 freekthread(struct kthread *kt)
 {
-  kt->state = UNUSED;
+  kt->state = KT_UNUSED;
   kt->chan = 0;
   kt->killed = 0;
   kt->xstate = 0;

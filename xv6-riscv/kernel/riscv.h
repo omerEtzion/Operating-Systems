@@ -1,5 +1,8 @@
 #ifndef __ASSEMBLER__
 
+// #include "defs.h"
+
+
 // which hart (core) is this?
 static inline uint64
 r_mhartid()
@@ -51,15 +54,19 @@ w_mepc(uint64 x)
 static inline uint64
 r_sstatus()
 {
+  // putc(1, '3');
   uint64 x;
   asm volatile("csrr %0, sstatus" : "=r" (x) );
+  // putc(1, '4');
   return x;
 }
 
 static inline void 
 w_sstatus(uint64 x)
 {
+  // putc(1, '4');
   asm volatile("csrw sstatus, %0" : : "r" (x));
+  // putc(1, '5');
 }
 
 // Supervisor Interrupt Pending
@@ -269,6 +276,7 @@ r_time()
 static inline void
 intr_on()
 {
+  // putc(1, '2');
   w_sstatus(r_sstatus() | SSTATUS_SIE);
 }
 

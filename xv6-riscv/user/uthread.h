@@ -1,6 +1,9 @@
 #define STACK_SIZE  4000
 #define MAX_UTHREADS  4
 
+// TODO: decide where to define types for the user
+typedef unsigned long uint64;
+
 enum sched_priority { LOW, MEDIUM, HIGH };
 
 /* Possible states of a thread: */
@@ -49,3 +52,5 @@ struct uthread* uthread_self();
 
 struct uthread* find_next_uthread();
 void context_swtch(struct uthread* next_uthread);
+
+void start_func_wrapper();
