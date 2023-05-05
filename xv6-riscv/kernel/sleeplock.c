@@ -21,13 +21,18 @@ initsleeplock(struct sleeplock *lk, char *name)
 void
 acquiresleep(struct sleeplock *lk)
 {
+  // printf("called acquiresleep\n");
+
   acquire(&lk->lk);
+  // printf("acquire acquiresleep\n");
   while (lk->locked) {
+    // printf("sleep called from acquiresleep\n");
     sleep(lk, &lk->lk);
   }
   lk->locked = 1;
   lk->pid = myproc()->pid;
   release(&lk->lk);
+  // printf("release acquiresleep\n");
 }
 
 void

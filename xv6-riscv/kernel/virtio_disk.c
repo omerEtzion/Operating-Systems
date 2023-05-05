@@ -215,9 +215,12 @@ alloc3_desc(int *idx)
 void
 virtio_disk_rw(struct buf *b, int write)
 {
+  // printf("called virtio_disk_rw\n");
+  
   uint64 sector = b->blockno * (BSIZE / 512);
 
   acquire(&disk.vdisk_lock);
+  // // printf("acquire virtio_disk_rw\n");
 
   // the spec's Section 5.2 says that legacy block operations use
   // three descriptors: one for type/reserved/sector, one for the
@@ -229,6 +232,8 @@ virtio_disk_rw(struct buf *b, int write)
     if(alloc3_desc(idx) == 0) {
       break;
     }
+
+    // printf("sleep called from virtio_disk_rw 1\n");
     sleep(&disk.free[0], &disk.vdisk_lock);
   }
 
@@ -282,6 +287,7 @@ virtio_disk_rw(struct buf *b, int write)
 
   // Wait for virtio_disk_intr() to say request has finished.
   while(b->disk == 1) {
+    // printf("sleep called from virtio_disk_rw 2; noff = %d\n", get_noff());
     sleep(b, &disk.vdisk_lock);
   }
 
@@ -289,6 +295,7 @@ virtio_disk_rw(struct buf *b, int write)
   free_chain(idx[0]);
 
   release(&disk.vdisk_lock);
+  // printf("release virtio_disk_rw\n");
 }
 
 void

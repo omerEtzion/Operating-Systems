@@ -10,6 +10,7 @@ extern struct proc proc[NPROC];
 
 void kthreadinit(struct proc *p)
 {
+  // printf("called kthreadinit\n");
 
   initlock(&p->ktid_lock, "nextktid");
   for (struct kthread *kt = p->kthread; kt < &p->kthread[NKT]; kt++)
@@ -26,16 +27,22 @@ void kthreadinit(struct proc *p)
 
 struct kthread *mykthread()
 {
+  // printf("called mykthread\n");
+  
   push_off();
   struct cpu *c = mycpu();
+  // printf("push_off mykthread; noff = %d\n", c->noff);
   struct kthread *kt = c->kthread;
   pop_off();
+  // printf("pop_off mykthread; noff = %d\n", c->noff);
   return kt;
 }
 
 int
 allocktid(struct proc *p)
 {
+  // printf("called allocktid\n");
+
   int ktid;
   
   acquire(&p->ktid_lock);
@@ -53,6 +60,8 @@ allocktid(struct proc *p)
 struct kthread*
 allockthread(struct proc* p)
 {
+  // printf("called allockthread\n");
+  
   struct kthread *kt;
 
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
@@ -63,6 +72,7 @@ allockthread(struct proc* p)
       release(&kt->lock);
     }
   }
+  printf("no available kthread found\n");
   return 0;
 
 found:
@@ -87,6 +97,8 @@ found:
 void
 freekthread(struct kthread *kt)
 {
+  // printf("called freekthread\n");
+  
   kt->state = KT_UNUSED;
   kt->chan = 0;
   kt->killed = 0;
@@ -98,5 +110,7 @@ freekthread(struct kthread *kt)
 
 struct trapframe *get_kthread_trapframe(struct proc *p, struct kthread *kt)
 {
+  // printf("called get_kthread_trapframe\n");
+  
   return p->base_trapframes + ((int)(kt - p->kthread));
 }

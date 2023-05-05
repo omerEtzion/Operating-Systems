@@ -22,6 +22,7 @@ void
 acquire(struct spinlock *lk)
 {
   push_off(); // disable interrupts to avoid deadlock.
+  // printf("push_off acquire; noff = %d", mycpu()->noff);
   if(holding(lk))
     panic("acquire");
 
@@ -46,8 +47,10 @@ acquire(struct spinlock *lk)
 void
 release(struct spinlock *lk)
 {
-  if(!holding(lk))
+  if(!holding(lk)) {
+    printf("lock: %s\n", lk->name);
     panic("release");
+  }
 
   lk->cpu = 0;
 
@@ -69,6 +72,8 @@ release(struct spinlock *lk)
   __sync_lock_release(&lk->locked);
 
   pop_off();
+  // printf("pop_off release; noff = %d", mycpu()->noff);
+  
 }
 
 // Check whether this cpu is holding the lock.

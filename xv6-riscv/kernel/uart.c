@@ -112,6 +112,7 @@ void
 uartputc_sync(int c)
 {
   push_off();
+  // printf("push_off uartputc_sync; noff = %d", mycpu()->noff);
 
   if(panicked){
     for(;;)
@@ -124,6 +125,7 @@ uartputc_sync(int c)
   WriteReg(THR, c);
 
   pop_off();
+  // printf("pop_off uartputc_sync; noff = %d", mycpu()->noff);
 }
 
 // if the UART is idle, and a character is waiting

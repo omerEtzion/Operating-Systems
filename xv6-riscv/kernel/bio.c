@@ -58,15 +58,20 @@ binit(void)
 static struct buf*
 bget(uint dev, uint blockno)
 {
+  // printf("called bget\n");
+  
   struct buf *b;
 
   acquire(&bcache.lock);
+  // printf("acquire bget\n");
 
   // Is the block already cached?
   for(b = bcache.head.next; b != &bcache.head; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
       b->refcnt++;
       release(&bcache.lock);
+      // printf("release bget\n");
+      // printf("acquiresleep called from bget\n");
       acquiresleep(&b->lock);
       return b;
     }
@@ -81,6 +86,8 @@ bget(uint dev, uint blockno)
       b->valid = 0;
       b->refcnt = 1;
       release(&bcache.lock);
+      // printf("release bget\n");
+      // printf("acquiresleep called from bget\n");
       acquiresleep(&b->lock);
       return b;
     }
@@ -92,6 +99,8 @@ bget(uint dev, uint blockno)
 struct buf*
 bread(uint dev, uint blockno)
 {
+  // printf("called bread\n");
+  
   struct buf *b;
 
   b = bget(dev, blockno);

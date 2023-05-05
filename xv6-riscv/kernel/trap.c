@@ -89,6 +89,8 @@ usertrap(void)
 void
 usertrapret(void)
 {
+  // printf("called usertrapret\n");
+  
   struct proc *p = myproc();
   struct kthread *kt = mykthread();
 

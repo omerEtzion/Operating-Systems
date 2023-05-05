@@ -79,6 +79,8 @@ consolewrite(int user_src, uint64 src, int n)
 int
 consoleread(int user_dst, uint64 dst, int n)
 {
+  // printf("called consoleread\n");
+  
   uint target;
   int c;
   char cbuf;
@@ -93,6 +95,7 @@ consoleread(int user_dst, uint64 dst, int n)
         release(&cons.lock);
         return -1;
       }
+      // printf("sleep called from consoleread\n");
       sleep(&cons.r, &cons.lock);
     }
 

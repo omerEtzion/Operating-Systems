@@ -32,6 +32,8 @@ struct spinlock wait_lock;
 void
 proc_mapstacks(pagetable_t kpgtbl)
 {
+  // printf("called proc_mapstacks\n");
+  
   struct proc *p;
   
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -49,6 +51,8 @@ proc_mapstacks(pagetable_t kpgtbl)
 void
 procinit(void)
 {
+  // printf("called procinit\n");
+  
   struct proc *p;
   
   initlock(&pid_lock, "nextpid");
@@ -84,10 +88,17 @@ mycpu(void)
 struct proc*
 myproc(void)
 {
+  // printf("called myproc\n");
+  
   push_off();
-  struct cpu *c = mycpu();
-  struct proc *p = c->kthread->proc;
+  // printf("push_off myproc; noff = %d\n", mycpu()->noff);
+  struct kthread *kt = mykthread();
   pop_off();
+  // printf("pop_off myproc; noff = %d\n", mycpu()->noff);
+  if (kt == 0) {
+    return 0; 
+  }
+  struct proc *p = kt->proc;
   return p;
 }
 
@@ -111,6 +122,8 @@ allocpid()
 static struct proc*
 allocproc(void)
 {
+  // printf("called allocproc\n");
+  
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -155,9 +168,12 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  // printf("called freeproc\n");
+  
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     freekthread(kt);
+    // release(&kt->lock); // TODO: is needed?
   }
   if(p->base_trapframes)
     kfree((void*)p->base_trapframes);
@@ -234,6 +250,8 @@ uchar initcode[] = {
 void
 userinit(void)
 {
+  // printf("called userinit\n");
+  
   struct proc *p;
 
   p = allocproc();
@@ -281,6 +299,8 @@ growproc(int n)
 int
 fork(void)
 {
+  // printf("called fork\n");
+  
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -355,6 +375,8 @@ reparent(struct proc *p)
 void
 exit(int status)
 {
+  // printf("called exit\n");
+  
   struct proc *p = myproc();
 
   if(p == initproc)
@@ -389,8 +411,9 @@ exit(int status)
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED)
       kt->state = KT_ZOMBIE;
-    else
+    else {
       release(&kt->lock);
+    }
   }
 
   p->xstate = status;
@@ -399,6 +422,7 @@ exit(int status)
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
+  // printf("calling sched from exit; noff = %d\n", mycpu()->noff);
   sched();
   panic("zombie exit");
 }
@@ -408,6 +432,8 @@ exit(int status)
 int
 wait(uint64 addr)
 {
+  // printf("called wait\n");
+  
   struct proc *pp;
   int havekids, pid;
   struct proc *p = myproc();
@@ -462,18 +488,17 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
+  // printf("called scheduler\n");
+  
   struct proc *p;
   struct cpu *c = mycpu();
   
   c->kthread = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
-    printf("1\n");
     intr_on();
-    printf("2\n");
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
-      printf("3\n");
       if(p->state == P_USED) {
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
@@ -481,9 +506,9 @@ scheduler(void)
         struct kthread* kt;
         for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
           acquire(&kt->lock);
-          printf("4\n");
           if (kt->state == KT_RUNNABLE) {
             kt->state = KT_RUNNING;
+            // printf("found kthread %d\n", kt);
             c->kthread = kt;
             swtch(&c->context, &kt->context);
           }
@@ -509,6 +534,8 @@ scheduler(void)
 void
 sched(void)
 {
+  // printf("called sched\n");
+  
   int intena;
   struct proc *p = myproc();
   struct kthread* kt = mykthread();
@@ -517,8 +544,10 @@ sched(void)
     panic("sched p->lock");
   if(!holding(&kt->lock))
     panic("sched kt->lock");
-  if(mycpu()->noff != 1)
+  if(mycpu()->noff != 2) {
+    printf("noff = %d\n", mycpu()->noff);
     panic("sched locks");
+  }
   if(kt->state == KT_RUNNING)
     panic("sched running");
   if(intr_get())
@@ -533,11 +562,14 @@ sched(void)
 void
 yield(void)
 {
+  // printf("called yield\n");
+  
   struct proc *p = myproc();
   acquire(&p->lock);
   struct kthread* kt = mykthread();
   acquire(&kt->lock);
   kt->state = KT_RUNNABLE;
+  // printf("calling sched from yield; noff = %d\n", mycpu()->noff);
   sched();
   release(&kt->lock);
   release(&p->lock);
@@ -548,9 +580,12 @@ yield(void)
 void
 forkret(void)
 {
+  // printf("called forkret\n");
+  
   static int first = 1;
 
   // Still holding p->lock from scheduler.
+  release(&mykthread()->lock);
   release(&myproc()->lock);
 
   if (first) {
@@ -569,6 +604,8 @@ forkret(void)
 void
 sleep(void *chan, struct spinlock *lk)
 {
+  // printf("called sleep\n");
+  
   struct proc *p = myproc();
 
   // Must acquire p->lock in order to
@@ -587,6 +624,7 @@ sleep(void *chan, struct spinlock *lk)
   kt->chan = chan;
   kt->state = KT_SLEEPING;
 
+  // printf("calling sched from sleep; noff = %d\n", mycpu()->noff);
   sched();
 
   // Tidy up.
@@ -603,21 +641,27 @@ sleep(void *chan, struct spinlock *lk)
 void
 wakeup(void *chan)
 {
+  // printf("called wakeup\n");
+  
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
     if(p != myproc()){
       acquire(&p->lock);
+      // printf("acquire wakeup; noff = %d\n", mycpu()->noff);
       struct kthread* kt;
       for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
         kt = p->kthread;
         acquire(&kt->lock);
+        // printf("acquire wakeup; noff = %d\n", mycpu()->noff);
         if(kt->state == KT_SLEEPING && kt->chan == chan) {
           kt->state = KT_RUNNABLE;
         }
         release(&kt->lock);
-      }
+        // printf("release wakeup; noff = %d\n", mycpu()->noff);
+    }
       release(&p->lock);
+      // printf("release wakeup; noff = %d\n", mycpu()->noff);
     }
   }
 }
@@ -628,6 +672,8 @@ wakeup(void *chan)
 int
 kill(int pid)
 {
+  // printf("called kill\n");
+  
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++){
@@ -656,6 +702,8 @@ kill(int pid)
 void
 setkilled(struct proc *p)
 {
+  // printf("called setkilled\n");
+  
   acquire(&p->lock);
   p->killed = 1;
   struct kthread* kt;
@@ -717,6 +765,8 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 void
 procdump(void)
 {
+  // printf("called procdump\n");
+  
   static char *states[] = {
   [P_UNUSED]    "unused",
   [P_USED]      "used",
@@ -736,4 +786,8 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int get_noff(void) {
+  return mycpu()->noff;
 }

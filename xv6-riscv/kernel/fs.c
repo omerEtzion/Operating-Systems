@@ -30,6 +30,8 @@ struct superblock sb;
 static void
 readsb(int dev, struct superblock *sb)
 {
+  // printf("called readsb\n");
+  
   struct buf *bp;
 
   bp = bread(dev, 1);
@@ -50,6 +52,8 @@ fsinit(int dev) {
 static void
 bzero(int dev, int bno)
 {
+  // // printf("called bzero\n");
+  
   struct buf *bp;
 
   bp = bread(dev, bno);
@@ -65,6 +69,8 @@ bzero(int dev, int bno)
 static uint
 balloc(uint dev)
 {
+  // // printf("called balloc\n");
+  
   int b, bi, m;
   struct buf *bp;
 
@@ -91,6 +97,8 @@ balloc(uint dev)
 static void
 bfree(int dev, uint b)
 {
+  // // printf("called bfree\n");
+  
   struct buf *bp;
   int bi, m;
 
@@ -198,6 +206,8 @@ static struct inode* iget(uint dev, uint inum);
 struct inode*
 ialloc(uint dev, short type)
 {
+  // printf("called ialloc\n");
+  
   int inum;
   struct buf *bp;
   struct dinode *dip;
@@ -225,6 +235,8 @@ ialloc(uint dev, short type)
 void
 iupdate(struct inode *ip)
 {
+  // printf("called iupdate\n");
+  
   struct buf *bp;
   struct dinode *dip;
 
@@ -292,6 +304,8 @@ idup(struct inode *ip)
 void
 ilock(struct inode *ip)
 {
+  // printf("called ilock\n");
+  
   struct buf *bp;
   struct dinode *dip;
 
@@ -336,6 +350,8 @@ iunlock(struct inode *ip)
 void
 iput(struct inode *ip)
 {
+  // printf("called iput\n");
+  
   acquire(&itable.lock);
 
   if(ip->ref == 1 && ip->valid && ip->nlink == 0){
@@ -382,6 +398,8 @@ iunlockput(struct inode *ip)
 static uint
 bmap(struct inode *ip, uint bn)
 {
+  // // printf("called bmap\n");
+  
   uint addr, *a;
   struct buf *bp;
 
@@ -425,6 +443,8 @@ bmap(struct inode *ip, uint bn)
 void
 itrunc(struct inode *ip)
 {
+  // printf("called itrunc\n");
+  
   int i, j;
   struct buf *bp;
   uint *a;
@@ -471,6 +491,8 @@ stati(struct inode *ip, struct stat *st)
 int
 readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 {
+  // printf("called readi\n");
+  
   uint tot, m;
   struct buf *bp;
 
@@ -505,6 +527,8 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 int
 writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 {
+  // printf("called writei\n");
+  
   uint tot, m;
   struct buf *bp;
 

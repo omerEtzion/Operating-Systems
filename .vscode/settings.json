@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "param.h": "c",
-        "printf.h": "c"
+        "printf.h": "c",
+        "kthread.h": "c"
     }
 }
