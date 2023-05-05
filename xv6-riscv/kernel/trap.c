@@ -53,8 +53,9 @@ usertrap(void)
   if(r_scause() == 8){
     // system call
 
-    if(killed(p))
+    if(killed(p)) {
       exit(-1);
+    }
 
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
@@ -73,8 +74,9 @@ usertrap(void)
     setkilled(p);
   }
 
-  if(killed(p))
+  if(killed(p)) {
     exit(-1);
+  }
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)

@@ -186,6 +186,7 @@ freeproc(struct proc *p)
   p->parent = 0;
   p->name[0] = 0;
   p->xstate = 0;
+  p->killed = 0;
   p->state = P_UNUSED;
 }
 

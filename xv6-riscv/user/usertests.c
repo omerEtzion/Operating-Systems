@@ -890,7 +890,7 @@ exitwait(char *s)
         exit(1);
       }
       if(i != xstate) {
-        printf("%s: wait wrong exit status\n", s);
+        printf("%s: wait wrong exit status, expected %d and got %d\n", s, i, xstate);
         exit(1);
       }
     } else {
