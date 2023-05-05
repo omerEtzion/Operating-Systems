@@ -91,7 +91,7 @@ consoleread(int user_dst, uint64 dst, int n)
     // wait until interrupt handler has put some
     // input into cons.buffer.
     while(cons.r == cons.w){
-      if(killed(myproc())){
+      if(killed(myproc()) || kthread_killed(mykthread())){
         release(&cons.lock);
         return -1;
       }

@@ -114,3 +114,120 @@ struct trapframe *get_kthread_trapframe(struct proc *p, struct kthread *kt)
   
   return p->base_trapframes + ((int)(kt - p->kthread));
 }
+
+int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
+  int i, ktid;
+  struct kthread *nkt;
+  struct proc *p = myproc();
+  struct kthread *kt = mykthread();
+
+  // Allocate process.
+  if((nkt = allockthread(p)) == 0){
+    return -1;
+  }
+
+  // // Copy user memory from parent to child.
+  // if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  //   freekthread(nkt);
+  //   release(&nkt->lock);
+  //   return -1;
+  // }
+  // np->sz = p->sz;
+
+  // copy saved user registers.
+  *(nkt->trapframe) = *(kt->trapframe);
+
+  // Cause kthread_create to return 0 in the child.
+  nkt->trapframe->a0 = 0;
+
+  // set nkt->kstack to the allocated kstack and the 'sp' register to the top of the kstack
+  nkt->kstack = (uint64)stack;
+  nkt->context.sp = stack + stack_size - 1;
+
+  // set the start_func field of the thread's struct and set the 'ra' register to start_func_wrapper
+  nkt->start_func = start_func;
+  nkt->context.ra = (uint64)start_func_wrapper;
+
+  ktid = nkt->ktid;
+
+  release(&nkt->lock);
+
+  acquire(&nkt->lock);
+  nkt->state = KT_RUNNABLE;
+  release(&nkt->lock);
+
+  return ktid;
+}
+
+int kthread_kill(int ktid) {
+  struct proc *p = myproc();
+  struct kthread *kt;
+
+  acquire(&p->lock);
+  for(kt = p->kthread; kt < &p->kthread[NKT]; kt++){
+    acquire(&kt->lock);
+    if(kt->ktid == ktid && kt->state != KT_UNUSED){
+      kt->killed = 1;
+      struct kthread* kt;
+      if (kt->state == KT_SLEEPING) {
+        kt->state = KT_RUNNABLE;
+      }
+      release(&kt->lock);
+      return 0;
+    }
+    release(&kt->lock);
+  }
+  release(&p->lock);
+  return -1;
+}
+
+int
+kthread_killed(struct kthread *kt)
+{
+  int k;
+  
+  acquire(&kt->lock);
+  k = kt->killed;
+  release(&kt->lock);
+  return k;
+}
+
+void kthread_exit(int status) {
+  // TODO: just copied from exit() in proc, still havent changed much
+
+
+  struct proc *p = myproc();
+  struct kthread* kt = mykthread();
+
+  // Parent might be sleeping in wait().
+  wakeup(p->parent);
+  
+  acquire(&p->lock);
+
+  struct kthread* kt;
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    acquire(&kt->lock);
+    if (kt->state != KT_UNUSED)
+      kt->state = KT_ZOMBIE;
+    else {
+      release(&kt->lock);
+    }
+  }
+
+  p->xstate = status;
+  p->state = P_ZOMBIE;
+
+  release(&wait_lock);
+
+  // Jump into the scheduler, never to return.
+  // printf("calling sched from exit; noff = %d\n", mycpu()->noff);
+  sched();
+  panic("zombie exit");
+}
+
+void start_func_wrapper() {
+  // a wrapper function for start_func that calls kthread_exit after start_func finishes
+  mykthread()->start_func();
+  kthread_exit(0);
+}
+

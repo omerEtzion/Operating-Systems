@@ -100,4 +100,5 @@ struct kthread
   uint64 kstack;               // Virtual address of kernel stack
   struct context context;      // swtch() here to run kthread
   struct trapframe *trapframe; // data page for trampoline.S
+  void (*start_func)();        // pointer to the thread's start function
 };

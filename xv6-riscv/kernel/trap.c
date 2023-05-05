@@ -53,7 +53,7 @@ usertrap(void)
   if(r_scause() == 8){
     // system call
 
-    if(killed(p)) {
+    if(killed(p) || kthread_killed(kt)) {
       exit(-1);
     }
 
@@ -74,7 +74,7 @@ usertrap(void)
     setkilled(p);
   }
 
-  if(killed(p)) {
+  if(killed(p) || kthread_killed(kt)) {
     exit(-1);
   }
 

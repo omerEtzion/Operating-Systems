@@ -80,10 +80,13 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
 
   int i = 0;
   struct proc *pr = myproc();
+  struct kthread *kt = mykthread();
 
   acquire(&pi->lock);
+  acquire(&kt->lock);
   while(i < n){
-    if(pi->readopen == 0 || killed(pr)){
+    if(pi->readopen == 0 || killed(pr) || kthread_killed(kt)){
+      release(&kt->lock);
       release(&pi->lock);
       return -1;
     }
@@ -99,6 +102,7 @@ pipewrite(struct pipe *pi, uint64 addr, int n)
     }
   }
   wakeup(&pi->nread);
+  release(&kt->lock);
   release(&pi->lock);
 
   return i;
@@ -111,11 +115,14 @@ piperead(struct pipe *pi, uint64 addr, int n)
 
   int i;
   struct proc *pr = myproc();
+  struct kthread *kt = mykthread();
   char ch;
 
   acquire(&pi->lock);
+  acquire(&kt->lock);
   while(pi->nread == pi->nwrite && pi->writeopen){  //DOC: pipe-empty
-    if(killed(pr)){
+    if(killed(pr) || kthread_killed(kt)){
+      release(&kt->lock);
       release(&pi->lock);
       return -1;
     }
@@ -129,6 +136,7 @@ piperead(struct pipe *pi, uint64 addr, int n)
       break;
   }
   wakeup(&pi->nwrite);  //DOC: piperead-wakeup
+  release(&kt->lock);
   release(&pi->lock);
   return i;
 }
