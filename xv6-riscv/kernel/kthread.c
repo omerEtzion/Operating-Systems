@@ -42,11 +42,9 @@ int
 allocktid(struct proc *p)
 {
   // printf("called allocktid\n");
-
-  int ktid;
   
   acquire(&p->ktid_lock);
-  ktid = p->nextktid;
+  int ktid = p->nextktid;
   p->nextktid += 1;
   release(&p->ktid_lock);
 
@@ -61,9 +59,8 @@ struct kthread*
 allockthread(struct proc* p)
 {
   // printf("called allockthread\n");
-  
+    
   struct kthread *kt;
-
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     acquire(&kt->lock);
     if(kt->state == KT_UNUSED) {
@@ -103,8 +100,7 @@ freekthread(struct kthread *kt)
   kt->chan = 0;
   kt->killed = 0;
   kt->xstate = 0;
-  kt->ktid = 0;
-    
+  kt->ktid = 0;   
   kt->trapframe = 0;  
 }
 
@@ -116,23 +112,15 @@ struct trapframe *get_kthread_trapframe(struct proc *p, struct kthread *kt)
 }
 
 int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
-  int i, ktid;
+  int ktid;
   struct kthread *nkt;
   struct proc *p = myproc();
   struct kthread *kt = mykthread();
 
-  // Allocate process.
+  // Allocate kthread.
   if((nkt = allockthread(p)) == 0){
     return -1;
   }
-
-  // // Copy user memory from parent to child.
-  // if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
-  //   freekthread(nkt);
-  //   release(&nkt->lock);
-  //   return -1;
-  // }
-  // np->sz = p->sz;
 
   // copy saved user registers.
   *(nkt->trapframe) = *(kt->trapframe);
@@ -142,18 +130,15 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
 
   // set nkt->kstack to the allocated kstack and the 'sp' register to the top of the kstack
   nkt->kstack = (uint64)stack;
-  nkt->context.sp = stack + stack_size - 1;
+  nkt->context.sp = (uint64)(stack + stack_size - 1);
 
   // set the start_func field of the thread's struct and set the 'ra' register to start_func_wrapper
   nkt->start_func = start_func;
   nkt->context.ra = (uint64)start_func_wrapper;
+  nkt->state = KT_RUNNABLE;
 
   ktid = nkt->ktid;
 
-  release(&nkt->lock);
-
-  acquire(&nkt->lock);
-  nkt->state = KT_RUNNABLE;
   release(&nkt->lock);
 
   return ktid;
@@ -167,8 +152,8 @@ int kthread_kill(int ktid) {
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++){
     acquire(&kt->lock);
     if(kt->ktid == ktid && kt->state != KT_UNUSED){
+      // found the kthread to kill
       kt->killed = 1;
-      struct kthread* kt;
       if (kt->state == KT_SLEEPING) {
         kt->state = KT_RUNNABLE;
       }
@@ -193,36 +178,79 @@ kthread_killed(struct kthread *kt)
 }
 
 void kthread_exit(int status) {
-  // TODO: just copied from exit() in proc, still havent changed much
-
-
   struct proc *p = myproc();
-  struct kthread* kt = mykthread();
+  struct kthread* mykt = mykthread();
 
-  // Parent might be sleeping in wait().
-  wakeup(p->parent);
-  
+  // set the current kthread's state to KT_ZOMBIE and it's xstate
+  acquire(&mykt->lock);
+  mykt->state = KT_ZOMBIE;
+  mykt->xstate = status;
+  release(&mykt->lock);
+
+  // wake up any kthread that were waiting to join mykt
+  wakeup(mykt);
+
   acquire(&p->lock);
-
+  
+  int should_terminate_proc = 1;
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     acquire(&kt->lock);
-    if (kt->state != KT_UNUSED)
-      kt->state = KT_ZOMBIE;
-    else {
+    if (kt->state != KT_UNUSED && kt->state != KT_ZOMBIE) {
+      // found a "living" kthread in the current proc, 
+      // so it shouldn't be terminated
+      should_terminate_proc = 0;
       release(&kt->lock);
+      break;
     }
+    release(&kt->lock);
   }
 
-  p->xstate = status;
-  p->state = P_ZOMBIE;
+  release(&p->lock);
 
-  release(&wait_lock);
+  if (should_terminate_proc) {
+    // proc has no "living" kthreads and should b terminated
+    exit(status);
+  }
 
   // Jump into the scheduler, never to return.
-  // printf("calling sched from exit; noff = %d\n", mycpu()->noff);
   sched();
-  panic("zombie exit");
+  panic("zombie kthread_exit");
+}
+
+int kthread_join(int ktid, int* status) {
+  struct proc* p = myproc();
+  struct kthread* kt_to_join = 0;
+
+  acquire(&p->lock);
+  struct kthread* kt;
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    acquire(&kt->lock);
+    if (kt->ktid == ktid && kt->state != KT_UNUSED) {
+      kt_to_join = kt;
+      break;
+    }
+    release(&kt->lock);
+  }
+  release(&p->lock);
+
+  if (kt_to_join == 0) {
+    return -1;
+  }
+
+  if (kt_to_join->state == KT_ZOMBIE) {
+    if (status != 0 && copyout(p->pagetable, (uint64)status, (char *)&kt_to_join->xstate,
+                                  sizeof(kt_to_join->xstate)) < 0) {
+      release(&kt_to_join->lock);
+      return -1;
+    }
+  } else {
+    // TODO: which lock should we sleep on?
+    sleep(kt_to_join, &kt_to_join->lock); 
+  }
+
+  release(&kt_to_join->lock);
+  return 0;
 }
 
 void start_func_wrapper() {
@@ -230,4 +258,33 @@ void start_func_wrapper() {
   mykthread()->start_func();
   kthread_exit(0);
 }
+
+// // Returns the next KT_RUNNABLE kthread, or 0 if none were found
+// struct kthread* find_next_kthread(){
+//   struct kthread* curr_kt = mykthread();
+//   struct kthread* next_kt = curr_kt + sizeof(struct kthread);
+//   struct proc* p = myproc();
+
+//   acquire(&p->lock);
+//   while (next_kt != curr_kt) {
+//     if (next_kt == &proc->kthread[NKT]) {
+//       next_kt = proc->kthread;
+//     }
+
+//     acquire(&next_kt->lock);
+//     if (next_kt->state == KT_RUNNABLE) {
+//       release(&next_kt->lock);
+//       break;
+//     }
+//     release(&next_kt->lock);
+    
+//     next_kt += sizeof(struct kthread);
+//   }
+//   release(&p->lock);
+
+//   if (next_kt != curr_kt)
+//     return next_kt;
+//   else
+//     return 0;
+// }
 

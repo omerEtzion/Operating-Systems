@@ -172,8 +172,9 @@ freeproc(struct proc *p)
   
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    acquire(&kt->lock);
     freekthread(kt);
-    // release(&kt->lock); // TODO: is needed?
+    release(&kt->lock); // TODO: is needed?
   }
   if(p->base_trapframes)
     kfree((void*)p->base_trapframes);
@@ -410,11 +411,11 @@ exit(int status)
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     acquire(&kt->lock);
-    if (kt->state != KT_UNUSED)
+    if (kt->state != KT_UNUSED) {
       kt->state = KT_ZOMBIE;
-    else {
-      release(&kt->lock);
+      kt->xstate = status;
     }
+    release(&kt->lock);
   }
 
   p->xstate = status;
@@ -423,7 +424,6 @@ exit(int status)
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
-  // printf("calling sched from exit; noff = %d\n", mycpu()->noff);
   sched();
   panic("zombie exit");
 }
@@ -647,23 +647,21 @@ wakeup(void *chan)
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
-    if(p != myproc()){
+    // if(p != myproc()){
       acquire(&p->lock);
-      // printf("acquire wakeup; noff = %d\n", mycpu()->noff);
       struct kthread* kt;
       for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
-        kt = p->kthread;
-        acquire(&kt->lock);
-        // printf("acquire wakeup; noff = %d\n", mycpu()->noff);
-        if(kt->state == KT_SLEEPING && kt->chan == chan) {
-          kt->state = KT_RUNNABLE;
+        // kt = p->kthread;
+        if (kt != mykthread()) { // changed to wakeup kthreads from kthread_join
+          acquire(&kt->lock);
+          if(kt->state == KT_SLEEPING && kt->chan == chan) {
+            kt->state = KT_RUNNABLE;
+          }
+          release(&kt->lock);
         }
-        release(&kt->lock);
-        // printf("release wakeup; noff = %d\n", mycpu()->noff);
-    }
+      }
       release(&p->lock);
-      // printf("release wakeup; noff = %d\n", mycpu()->noff);
-    }
+    // }
   }
 }
 

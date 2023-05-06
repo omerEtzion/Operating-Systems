@@ -119,6 +119,9 @@ struct trapframe*   get_kthread_trapframe(struct proc *p, struct kthread *kt);
 int                 kthread_create(void *(*start_func)(), void *stack, uint stack_size);
 int                 kthread_kill(int ktid);
 int                 kthread_killed(struct kthread *kt);
+void                kthread_exit(int status);
+int                 kthread_join(int ktid, int* status);
+void                start_func_wrapper();
 
 // swtch.S
 void            swtch(struct context*, struct context*);

@@ -102,7 +102,7 @@ sys_kthread_create(void)
   int stack_size;
   argint(2, &stack_size);
 
-  return kthread_create(start_func, stack, stack_size);
+  return kthread_create((void *(*)())start_func, (void*)stack, stack_size);
 }
 
 uint64
@@ -118,4 +118,25 @@ sys_kthread_kill(void)
   argint(0, &ktid);
 
   return kthread_kill(ktid);
+}
+
+uint64
+sys_kthread_exit(void)
+{
+  int status;
+  argint(0, &status);
+
+  kthread_exit(status);
+  return 0;
+}
+
+uint64
+sys_kthread_join(void)
+{
+  int ktid;
+  argint(0, &ktid);
+  
+  uint64 status;
+  argaddr(1, &status);
+  return kthread_join(ktid, (int*)status);
 }

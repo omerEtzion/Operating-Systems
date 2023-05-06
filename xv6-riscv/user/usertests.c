@@ -2966,13 +2966,16 @@ run(void f(char *), char *s) {
 
 int
 runtests(struct test *tests, char *justone) {
+  int testnum = 0;
   for (struct test *t = tests; t->s != 0; t++) {
+    printf("%d\n", testnum);
     if((justone == 0) || strcmp(t->s, justone) == 0) {
       if(!run(t->f, t->s)){
         printf("SOME TESTS FAILED\n");
         return 1;
       }
     }
+    testnum++;
   }
   return 0;
 }

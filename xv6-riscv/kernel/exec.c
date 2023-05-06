@@ -32,7 +32,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
-  struct kthread *kt = mykthread();
+  struct kthread *mykt = mykthread();
 
   begin_op();
 
@@ -76,7 +76,7 @@ exec(char *path, char **argv)
   ip = 0;
 
   p = myproc();
-  kt = mykthread();
+  mykt = mykthread();
   uint64 oldsz = p->sz;
 
   // Allocate two pages at the next page boundary.
@@ -116,7 +116,7 @@ exec(char *path, char **argv)
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
-  kt->trapframe->a1 = sp;
+  mykt->trapframe->a1 = sp;
 
   // Save program name for debugging.
   for(last=s=path; *s; s++)
@@ -128,9 +128,19 @@ exec(char *path, char **argv)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  kt->trapframe->epc = elf.entry;  // initial program counter = main
-  kt->trapframe->sp = sp; // initial stack pointer
+  mykt->trapframe->epc = elf.entry;  // initial program counter = main
+  mykt->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+
+  struct kthread* kt;
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    acquire(&kt->lock);
+    if (kt != mykt && kt->state != KT_UNUSED) {
+      kt->state = KT_ZOMBIE;
+      kt->xstate = 0;
+    }
+    release(&kt->lock);
+  }
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 

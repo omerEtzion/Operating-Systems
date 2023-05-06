@@ -133,6 +133,11 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	# $U/_kthread_create\
+	# $U/_kthread_id\
+	# $U/_kthread_kill\
+	# $U/_kthread_exit\
+	# $U/_kthread_join\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
