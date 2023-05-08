@@ -220,7 +220,7 @@ virtio_disk_rw(struct buf *b, int write)
   uint64 sector = b->blockno * (BSIZE / 512);
 
   acquire(&disk.vdisk_lock);
-  // // printf("acquire virtio_disk_rw\n");
+  // // // printf("acquire virtio_disk_rw\n");
 
   // the spec's Section 5.2 says that legacy block operations use
   // three descriptors: one for type/reserved/sector, one for the

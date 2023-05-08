@@ -43,6 +43,7 @@ allocktid(struct proc *p)
 {
   // printf("called allocktid\n");
   
+  // printf("acquire allocktid\n");
   acquire(&p->ktid_lock);
   int ktid = p->nextktid;
   p->nextktid += 1;
@@ -62,6 +63,7 @@ allockthread(struct proc* p)
     
   struct kthread *kt;
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    // printf("acquire allockthread\n");
     acquire(&kt->lock);
     if(kt->state == KT_UNUSED) {
       goto found;
@@ -148,8 +150,10 @@ int kthread_kill(int ktid) {
   struct proc *p = myproc();
   struct kthread *kt;
 
+  // printf("acquire kthread_kill 1\n");
   acquire(&p->lock);
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++){
+    // printf("acquire kthread_kill 2\n");
     acquire(&kt->lock);
     if(kt->ktid == ktid && kt->state != KT_UNUSED){
       // found the kthread to kill
@@ -171,6 +175,7 @@ kthread_killed(struct kthread *kt)
 {
   int k;
   
+  // printf("acquire kthread_killed\n");
   acquire(&kt->lock);
   k = kt->killed;
   release(&kt->lock);
@@ -182,6 +187,7 @@ void kthread_exit(int status) {
   struct kthread* mykt = mykthread();
 
   // set the current kthread's state to KT_ZOMBIE and it's xstate
+  // printf("acquire kthread_exit 1\n");
   acquire(&mykt->lock);
   mykt->state = KT_ZOMBIE;
   mykt->xstate = status;
@@ -190,26 +196,26 @@ void kthread_exit(int status) {
   // wake up any kthread that were waiting to join mykt
   wakeup(mykt);
 
+  // printf("acquire kthread_exit 2\n");
   acquire(&p->lock);
   
   int should_terminate_proc = 1;
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    // printf("acquire kthread_exit 3\n");
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED && kt->state != KT_ZOMBIE) {
       // found a "living" kthread in the current proc, 
       // so it shouldn't be terminated
       should_terminate_proc = 0;
-      release(&kt->lock);
       break;
     }
     release(&kt->lock);
   }
 
-  release(&p->lock);
-
   if (should_terminate_proc) {
     // proc has no "living" kthreads and should b terminated
+    release(&p->lock);
     exit(status);
   }
 
@@ -222,9 +228,11 @@ int kthread_join(int ktid, int* status) {
   struct proc* p = myproc();
   struct kthread* kt_to_join = 0;
 
+  // printf("acquire kthread_join 1\n");
   acquire(&p->lock);
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    // printf("acquire kthread_join 2\n");
     acquire(&kt->lock);
     if (kt->ktid == ktid && kt->state != KT_UNUSED) {
       kt_to_join = kt;

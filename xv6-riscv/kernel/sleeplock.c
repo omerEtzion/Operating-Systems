@@ -24,7 +24,7 @@ acquiresleep(struct sleeplock *lk)
   // printf("called acquiresleep\n");
 
   acquire(&lk->lk);
-  // printf("acquire acquiresleep\n");
+  // // printf("acquire acquiresleep\n");
   while (lk->locked) {
     // printf("sleep called from acquiresleep\n");
     sleep(lk, &lk->lk);

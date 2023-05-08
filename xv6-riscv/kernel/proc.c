@@ -127,6 +127,7 @@ allocproc(void)
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++) {
+    // printf("acquire allocproc\n");
     acquire(&p->lock);
     if(p->state == P_UNUSED) {
       goto found;
@@ -172,6 +173,7 @@ freeproc(struct proc *p)
   
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    // printf("acquire freeproc\n");
     acquire(&kt->lock);
     freekthread(kt);
     release(&kt->lock); // TODO: is needed?
@@ -343,11 +345,14 @@ fork(void)
   release(&nkt->lock);
   release(&np->lock);
 
+  // printf("acquire fork 1\n");
   acquire(&wait_lock);
   np->parent = p;
   release(&wait_lock);
 
+  // printf("acquire fork 2\n");
   acquire(&np->lock);
+  // printf("acquire fork 3\n");
   acquire(&nkt->lock);
   nkt->state = KT_RUNNABLE;
   release(&nkt->lock);
@@ -380,6 +385,7 @@ exit(int status)
   // printf("called exit\n");
   
   struct proc *p = myproc();
+  struct kthread *mykt = mykthread();
 
   if(p == initproc)
     panic("init exiting");
@@ -398,6 +404,7 @@ exit(int status)
   end_op();
   p->cwd = 0;
 
+  // printf("acquire exit 1\n");
   acquire(&wait_lock);
 
   // Give any children to init.
@@ -406,10 +413,12 @@ exit(int status)
   // Parent might be sleeping in wait().
   wakeup(p->parent);
   
+  // printf("acquire exit 2\n");
   acquire(&p->lock);
 
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    // printf("acquire exit 3\n");
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED) {
       kt->state = KT_ZOMBIE;
@@ -422,6 +431,8 @@ exit(int status)
   p->state = P_ZOMBIE;
 
   release(&wait_lock);
+  // printf("acquire exit 4\n");
+  acquire(&mykt->lock);
 
   // Jump into the scheduler, never to return.
   sched();
@@ -439,6 +450,7 @@ wait(uint64 addr)
   int havekids, pid;
   struct proc *p = myproc();
 
+  // printf("acquire wait 1\n");
   acquire(&wait_lock);
 
   for(;;){
@@ -447,6 +459,7 @@ wait(uint64 addr)
     for(pp = proc; pp < &proc[NPROC]; pp++){
       if(pp->parent == p){
         // make sure the child isn't still in exit() or swtch().
+        // printf("acquire wait 2\n");
         acquire(&pp->lock);
 
         havekids = 1;
@@ -499,6 +512,7 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
     for(p = proc; p < &proc[NPROC]; p++) {
+      // // printf("acquire scheduler 1\n");
       acquire(&p->lock);
       if(p->state == P_USED) {
         // Switch to chosen process.  It is the process's job
@@ -506,6 +520,7 @@ scheduler(void)
         // before jumping back to us.
         struct kthread* kt;
         for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+          // // printf("acquire scheduler 2\n");
           acquire(&kt->lock);
           if (kt->state == KT_RUNNABLE) {
             kt->state = KT_RUNNING;
@@ -566,8 +581,10 @@ yield(void)
   // printf("called yield\n");
   
   struct proc *p = myproc();
+  // // printf("acquire yield 1\n");
   acquire(&p->lock);
   struct kthread* kt = mykthread();
+  // // printf("acquire yield 2\n");
   acquire(&kt->lock);
   kt->state = KT_RUNNABLE;
   // printf("calling sched from yield; noff = %d\n", mycpu()->noff);
@@ -616,8 +633,10 @@ sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
+  // printf("acquire sleep 1\n");
   acquire(&p->lock);  //DOC: sleeplock1
   struct kthread* kt = mykthread();
+  // printf("acquire sleep 2\n");
   acquire(&kt->lock);
   release(lk);
 
@@ -634,6 +653,7 @@ sleep(void *chan, struct spinlock *lk)
   // Reacquire original lock.
   release(&kt->lock);
   release(&p->lock);
+  // printf("acquire sleep 3\n");
   acquire(lk);
 }
 
@@ -648,11 +668,13 @@ wakeup(void *chan)
 
   for(p = proc; p < &proc[NPROC]; p++) {
     // if(p != myproc()){
+      // // printf("acquire wakeup 1\n");
       acquire(&p->lock);
       struct kthread* kt;
       for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
         // kt = p->kthread;
         if (kt != mykthread()) { // changed to wakeup kthreads from kthread_join
+          // // printf("acquire wakeup 2\n");
           acquire(&kt->lock);
           if(kt->state == KT_SLEEPING && kt->chan == chan) {
             kt->state = KT_RUNNABLE;
@@ -676,11 +698,13 @@ kill(int pid)
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++){
+    // printf("acquire kill 1\n");
     acquire(&p->lock);
     if(p->pid == pid){
       p->killed = 1;
       struct kthread* kt;
       for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+        // printf("acquire kill 2\n");
         acquire(&kt->lock);
         if (kt->state != KT_UNUSED) {
           kt->killed = 1;
@@ -703,11 +727,13 @@ setkilled(struct proc *p)
 {
   // printf("called setkilled\n");
   
+  // printf("acquire setkilled 1\n");
   acquire(&p->lock);
   p->killed = 1;
   struct kthread* kt;
   //TODO: if a process is killed, do we kill all the kthreads within it?
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    // printf("acquire setkilled 2\n");
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED) {
       kt->killed = 1;
@@ -722,6 +748,7 @@ killed(struct proc *p)
 {
   int k;
   
+  // printf("acquire killed\n");
   acquire(&p->lock);
   k = p->killed;
   release(&p->lock);

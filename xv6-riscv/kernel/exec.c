@@ -132,6 +132,7 @@ exec(char *path, char **argv)
   mykt->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
+  acquire(&p->lock);
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     acquire(&kt->lock);
@@ -141,6 +142,7 @@ exec(char *path, char **argv)
     }
     release(&kt->lock);
   }
+  release(&p->lock);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
