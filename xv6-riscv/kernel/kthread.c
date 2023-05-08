@@ -136,7 +136,7 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
 
   // set the start_func field of the thread's struct and set the 'ra' register to start_func_wrapper
   nkt->start_func = start_func;
-  nkt->context.ra = (uint64)start_func_wrapper;
+  nkt->trapframe->epc = (uint64)start_func_wrapper;
   nkt->state = KT_RUNNABLE;
 
   ktid = nkt->ktid;

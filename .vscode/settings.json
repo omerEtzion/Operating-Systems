@@ -4,6 +4,7 @@
         "printf.h": "c",
         "kthread.h": "c",
         "memlayout.h": "c",
-        "defs.h": "c"
+        "defs.h": "c",
+        "user.h": "c"
     }
 }

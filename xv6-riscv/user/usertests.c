@@ -2629,12 +2629,12 @@ void klttest()
   uint64 stack_a = (uint64)malloc(MAX_STACK_SIZE);
   uint64 stack_b = (uint64)malloc(MAX_STACK_SIZE);
 
-  int kt_a = kthread_create((void *(*)())kthread_start_func, stack_a, MAX_STACK_SIZE);
+  int kt_a = kthread_create((void *(*)())kthread_start_func, (void*)stack_a, MAX_STACK_SIZE);
   if(kt_a <= 0){
     printf("kthread_create failed\n");
     exit(1);
   }
-  int kt_b = kthread_create((void *(*)())kthread_start_func, stack_b, MAX_STACK_SIZE);
+  int kt_b = kthread_create((void *(*)())kthread_start_func, (void*)stack_b, MAX_STACK_SIZE);
   if(kt_a <= 0){
     printf("kthread_create failed\n");
     exit(1);
@@ -3055,7 +3055,7 @@ int
 runtests(struct test *tests, char *justone) {
   int testnum = 0;
   for (struct test *t = tests; t->s != 0; t++) {
-    printf("%d\n", testnum);
+    // printf("%d\n", testnum);
     if((justone == 0) || strcmp(t->s, justone) == 0) {
       if(!run(t->f, t->s)){
         printf("SOME TESTS FAILED\n");

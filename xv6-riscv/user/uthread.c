@@ -86,7 +86,6 @@ int uthread_start_all(){
             context_swtch(next_uthread);
         }
     }
-
     return -1;
 }
 
@@ -96,30 +95,31 @@ struct uthread* uthread_self(){
 
 struct uthread* find_next_uthread(){
     struct uthread* uthread_iter;
-    if (current_uthread == 0) {
+    struct uthread* current_uthread_ptr = current_uthread;
+    if (current_uthread_ptr == 0) {
         // if this is the first round, we want to start the while loop 
         // at the begginning of uthreads and end it at the end of uthreads
         uthread_iter = &uthreads[0];
-        current_uthread = &uthreads[MAX_UTHREADS]; 
+        current_uthread_ptr = &uthreads[MAX_UTHREADS]; 
     } else {
         // otherwise, we start the search from the uthread after current_uthread
-        uthread_iter = current_uthread + sizeof(struct uthread);
+        uthread_iter = current_uthread_ptr + (&uthreads[1] - &uthreads[0]);
     }
     
     struct uthread* next_uthread = 0;
 
-    while (uthread_iter != current_uthread) {
+    while (uthread_iter != current_uthread_ptr) {
         if (uthread_iter == &uthreads[MAX_UTHREADS]) {
-            uthread_iter = &uthreads[0];
+            uthread_iter = uthreads;
+            continue;
         }
-
         if (uthread_iter->state == RUNNABLE && (next_uthread == 0 || uthread_iter->priority > next_uthread->priority)) {
             next_uthread = uthread_iter;
         }
         
-        uthread_iter += sizeof(struct uthread);
+        ++uthread_iter;
     }
-
+    
     return next_uthread;
 }
 
@@ -129,8 +129,14 @@ void context_swtch(struct uthread* next_uthread){
     // update the current thread pointer
     current_uthread = next_uthread;
 
-    // save the context of the current thread and switch to the next thread
-    uswtch(&prev_thread->context, &current_uthread->context);
+    if (prev_thread != 0) {
+        // save the context of the current thread and switch to the next thread
+        uswtch(&prev_thread->context, &next_uthread->context);
+    } else {
+        struct context empty_context;
+        memset(&empty_context, 0, sizeof(empty_context));
+        uswtch(&empty_context, &next_uthread->context);
+    }
 }
 
 void start_func_wrapper() {
