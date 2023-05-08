@@ -428,6 +428,8 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
   if(got_null){
     return 0;
+  } else if (max == 0) { // string is not null terminated
+    return -2;
   } else {
     return -1;
   }

@@ -16,8 +16,14 @@ sys_exit(void)
   if(argint(0, &n) < 0)
     return -1;
   
-  if(argstr(1, msg, 32) < 0)  // TODO change 32 to global var, 1 intead of 0
+  int res = argstr(1, msg, 32);
+  if(res == -1)  // TODO change 32 to global var, 1 intead of 0
     return -1;
+
+  if(res == -2) {
+    msg[32 - 2] = '\n';
+    msg[32 - 1] = '\0';
+  }
 
   exit(n, msg);
   return 0;  // not reached
