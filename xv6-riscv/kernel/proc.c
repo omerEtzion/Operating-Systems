@@ -372,8 +372,7 @@ exit(int status, char* msg)
   p->state = ZOMBIE;
   // p->exit_msg = msg;
   int i;
-    for (i = 0; i < sizeof(p->exit_msg) && msg[i] != '\0' && i < 32; i++) {
-        // printf("i: %d\n", i);
+    for (i = 0; i < sizeof(p->exit_msg) && msg[i] != '\0'; i++) {
         p->exit_msg[i] = msg[i];
     }
     p->exit_msg[i] = '\0'; // add null terminator to end of string
