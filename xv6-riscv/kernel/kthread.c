@@ -8,7 +8,7 @@
 
 extern struct proc proc[NPROC];
 
-int debug_mode = 1;
+int debug_mode = 0;
 
 void kthreadinit(struct proc *p)
 {
@@ -266,13 +266,15 @@ void kthread_exit(int status) {
       printf("called release on lock %d 12\n", &kt->lock);
     release(&kt->lock);
   }
-  release(&p->lock);
+  // if (get_debug_mode()) 
+  //   printf("called release on lock %d 12.1\n", &p->lock);
+  // release(&p->lock);
 
   if (should_terminate_proc) {
     // proc has no "living" kthreads and should b terminated
     if (get_debug_mode()) 
       printf("called release on lock %d 13\n", &p->lock);
-    // release(&p->lock);
+    release(&p->lock);
     exit(status);
   }
 

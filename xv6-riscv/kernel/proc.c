@@ -404,7 +404,7 @@ reparent(struct proc *p)
 void
 exit(int status)
 {
-  printf("called exit\n");
+  // printf("called exit\n");
   
   struct proc *p = myproc();
   struct kthread *mykt = mykthread();
@@ -459,8 +459,11 @@ exit(int status)
   p->state = P_ZOMBIE;
 
   release(&wait_lock);
-  release(&p->lock);
-  // printf("acquire exit 4\n");
+  // if (get_debug_mode()) 
+  //   printf("called release on lock %d 23\n", &p->lock);
+  // release(&p->lock);
+  if (get_debug_mode()) 
+    printf("called acquire on lock %d 23\n", &mykt->lock);
   acquire(&mykt->lock);
 
   // Jump into the scheduler, never to return.
@@ -591,14 +594,14 @@ sched(void)
   // printf("called sched\n");
   
   int intena;
-  // struct proc *p = myproc();
+  struct proc *p = myproc();
   struct kthread* kt = mykthread();
 
-  // if(!holding(&p->lock))
-  //   panic("sched p->lock");
+  if(!holding(&p->lock))
+    panic("sched p->lock");
   if(!holding(&kt->lock))
     panic("sched kt->lock");
-  if(mycpu()->noff != 1) {
+  if(mycpu()->noff != 2) {
     printf("noff = %d\n", mycpu()->noff);
     panic("sched locks");
   }
@@ -618,10 +621,10 @@ yield(void)
 {
   // printf("called yield\n");
   
-  // struct proc *p = myproc();
-  // if (get_debug_mode())
-  //   printf("called acquire on lock %d 23\n", &p->lock);
-  // acquire(&p->lock);
+  struct proc *p = myproc();
+  if (get_debug_mode())
+    printf("called acquire on lock %d 23\n", &p->lock);
+  acquire(&p->lock);
   
   struct kthread* kt = mykthread();
   if (get_debug_mode())
@@ -633,9 +636,9 @@ yield(void)
     printf("called release on lock %d 26\n", &kt->lock);
   release(&kt->lock);
   
-  // if (get_debug_mode()) 
-  //   printf("called release on lock %d 27\n", &p->lock);
-  // release(&p->lock);
+  if (get_debug_mode()) 
+    printf("called release on lock %d 27\n", &p->lock);
+  release(&p->lock);
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -676,10 +679,10 @@ sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
-  // struct proc *p = myproc();
-  // if (get_debug_mode())
-  //   printf("called acquire on lock %d 25\n", &p->lock);
-  // acquire(&p->lock);  //DOC: sleeplock1
+  struct proc *p = myproc();
+  if (get_debug_mode())
+    printf("called acquire on lock %d 25\n", &p->lock);
+  acquire(&p->lock);  //DOC: sleeplock1
 
   struct kthread* kt = mykthread();
   if (get_debug_mode())
@@ -704,9 +707,9 @@ sleep(void *chan, struct spinlock *lk)
     printf("called release on lock %d 29\n", &kt->lock);
   release(&kt->lock);
   
-  // if (get_debug_mode()) 
-  //   printf("called release on lock %d 30\n", &p->lock);
-  // release(&p->lock);
+  if (get_debug_mode()) 
+    printf("called release on lock %d 30\n", &p->lock);
+  release(&p->lock);
 
   if (get_debug_mode())
     printf("called acquire on lock %d 27\n", lk);

@@ -2632,7 +2632,7 @@ void klttest()
   uint64 stack_b = (uint64)malloc(MAX_STACK_SIZE);
   printf("debugging: after malloc\n");
 
-  // set_debug_mode(1);
+  set_debug_mode(1);
   int kt_a = kthread_create((void *(*)())kthread_start_func, (void*)stack_a, MAX_STACK_SIZE);
   printf("debugging: after kthread create num1\n");
   if(kt_a <= 0){
