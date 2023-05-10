@@ -2616,6 +2616,7 @@ void ulttest()
 
 
 void kthread_start_func(void){
+  printf("\nstarted kthread_func\n");
   for(int i=0; i<10; i++){
     sleep(10); // simulate work
   }
@@ -2631,6 +2632,7 @@ void klttest()
   uint64 stack_b = (uint64)malloc(MAX_STACK_SIZE);
   printf("debugging: after malloc\n");
 
+  // set_debug_mode(1);
   int kt_a = kthread_create((void *(*)())kthread_start_func, (void*)stack_a, MAX_STACK_SIZE);
   printf("debugging: after kthread create num1\n");
   if(kt_a <= 0){
@@ -3046,7 +3048,6 @@ int
 run(void f(char *), char *s) {
   int pid;
   int xstatus;
-
   printf("test %s: ", s);
   if((pid = fork()) < 0) {
     printf("runtest: fork error\n");

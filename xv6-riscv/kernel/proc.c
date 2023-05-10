@@ -128,10 +128,14 @@ allocproc(void)
 
   for(p = proc; p < &proc[NPROC]; p++) {
     // printf("acquire allocproc\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 15\n", &p->lock);
     acquire(&p->lock);
     if(p->state == P_UNUSED) {
       goto found;
     } else {
+      if (get_debug_mode()) 
+        printf("called release on lock %d 16\n", &p->lock);
       release(&p->lock);
     }
   }
@@ -146,6 +150,8 @@ found:
   // Allocate a trapframe page.
   if((p->base_trapframes = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
+    if (get_debug_mode()) 
+      printf("called release on lock %d 17\n", &p->lock);
     release(&p->lock);
     return 0;
   }
@@ -156,6 +162,8 @@ found:
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
     freeproc(p);
+    if (get_debug_mode()) 
+      printf("called release on lock %d 18\n", &p->lock);
     release(&p->lock);
     return 0;
   }
@@ -174,8 +182,12 @@ freeproc(struct proc *p)
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     // printf("acquire freeproc\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 16\n", &kt->lock);
     acquire(&kt->lock);
     freekthread(kt);
+    if (get_debug_mode()) 
+      printf("called release on lock %d 19\n", &kt->lock);
     release(&kt->lock); // TODO: is needed?
   }
   if(p->base_trapframes)
@@ -275,6 +287,8 @@ userinit(void)
   p->cwd = namei("/");
 
   release(&p->kthread[0].lock);
+  if (get_debug_mode()) 
+    printf("called release on lock %d 20\n", &p->lock);
   release(&p->lock);
 }
 
@@ -351,11 +365,19 @@ fork(void)
   release(&wait_lock);
 
   // printf("acquire fork 2\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 17\n", &np->lock);
   acquire(&np->lock);
   // printf("acquire fork 3\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 18\n", &nkt->lock);
   acquire(&nkt->lock);
   nkt->state = KT_RUNNABLE;
+  if (get_debug_mode()) 
+    printf("called release on lock %d 21\n", &nkt->lock);
   release(&nkt->lock);
+  if (get_debug_mode()) 
+    printf("called release on lock %d 22\n", &np->lock);
   release(&np->lock);
 
   return pid;
@@ -382,7 +404,7 @@ reparent(struct proc *p)
 void
 exit(int status)
 {
-  // printf("called exit\n");
+  printf("called exit\n");
   
   struct proc *p = myproc();
   struct kthread *mykt = mykthread();
@@ -414,16 +436,22 @@ exit(int status)
   wakeup(p->parent);
   
   // printf("acquire exit 2\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 19\n", &p->lock);
   acquire(&p->lock);
 
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     // printf("acquire exit 3\n");
+    if (get_debug_mode())
+    printf("called acquire on lock %d 20\n", &kt->lock);
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED) {
       kt->state = KT_ZOMBIE;
       kt->xstate = status;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 23\n", &kt->lock);
     release(&kt->lock);
   }
 
@@ -431,6 +459,7 @@ exit(int status)
   p->state = P_ZOMBIE;
 
   release(&wait_lock);
+  release(&p->lock);
   // printf("acquire exit 4\n");
   acquire(&mykt->lock);
 
@@ -513,6 +542,8 @@ scheduler(void)
     intr_on();
     for(p = proc; p < &proc[NPROC]; p++) {
       // // printf("acquire scheduler 1\n");
+      if (get_debug_mode())
+        printf("called acquire on lock %d 21\n", &p->lock);
       acquire(&p->lock);
       if(p->state == P_USED) {
         // Switch to chosen process.  It is the process's job
@@ -521,14 +552,18 @@ scheduler(void)
         struct kthread* kt;
         for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
           // // printf("acquire scheduler 2\n");
+          if (get_debug_mode())
+            printf("called acquire on lock %d 22\n", &kt->lock);
           acquire(&kt->lock);
           if (kt->state == KT_RUNNABLE) {
             kt->state = KT_RUNNING;
             // printf("found kthread %d\n", kt);
             c->kthread = kt;
-            printf("running thread -> %s\n", &kt->proc->name);
+            // printf("running thread -> %s\n", &kt->proc->name);
             swtch(&c->context, &kt->context);
           }
+          if (get_debug_mode()) 
+            printf("called release on lock %d 24\n", &kt->lock);
           release(&kt->lock);
 
           // Kthread is done running for now.
@@ -536,6 +571,8 @@ scheduler(void)
           c->kthread = 0;
         }
       }
+      if (get_debug_mode()) 
+        printf("called release on lock %d 25\n", &p->lock);
       release(&p->lock);
     }
   }
@@ -554,14 +591,14 @@ sched(void)
   // printf("called sched\n");
   
   int intena;
-  struct proc *p = myproc();
+  // struct proc *p = myproc();
   struct kthread* kt = mykthread();
 
-  if(!holding(&p->lock))
-    panic("sched p->lock");
+  // if(!holding(&p->lock))
+  //   panic("sched p->lock");
   if(!holding(&kt->lock))
     panic("sched kt->lock");
-  if(mycpu()->noff != 2) {
+  if(mycpu()->noff != 1) {
     printf("noff = %d\n", mycpu()->noff);
     panic("sched locks");
   }
@@ -581,17 +618,24 @@ yield(void)
 {
   // printf("called yield\n");
   
-  struct proc *p = myproc();
-  // // printf("acquire yield 1\n");
-  acquire(&p->lock);
+  // struct proc *p = myproc();
+  // if (get_debug_mode())
+  //   printf("called acquire on lock %d 23\n", &p->lock);
+  // acquire(&p->lock);
+  
   struct kthread* kt = mykthread();
-  // // printf("acquire yield 2\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 24\n", &kt->lock);
   acquire(&kt->lock);
   kt->state = KT_RUNNABLE;
-  // printf("calling sched from yield; noff = %d\n", mycpu()->noff);
   sched();
+  if (get_debug_mode()) 
+    printf("called release on lock %d 26\n", &kt->lock);
   release(&kt->lock);
-  release(&p->lock);
+  
+  // if (get_debug_mode()) 
+  //   printf("called release on lock %d 27\n", &p->lock);
+  // release(&p->lock);
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -624,8 +668,6 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   // printf("called sleep\n");
-  
-  struct proc *p = myproc();
 
   // Must acquire p->lock in order to
   // change p->state and then call sched.
@@ -634,11 +676,17 @@ sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
-  // printf("acquire sleep 1\n");
-  acquire(&p->lock);  //DOC: sleeplock1
+  // struct proc *p = myproc();
+  // if (get_debug_mode())
+  //   printf("called acquire on lock %d 25\n", &p->lock);
+  // acquire(&p->lock);  //DOC: sleeplock1
+
   struct kthread* kt = mykthread();
-  // printf("acquire sleep 2\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 26\n", &kt->lock);
   acquire(&kt->lock);
+  if (get_debug_mode()) 
+    printf("called release on lock %d 28\n", lk);
   release(lk);
 
   // Go to sleep.
@@ -652,9 +700,16 @@ sleep(void *chan, struct spinlock *lk)
   kt->chan = 0;
 
   // Reacquire original lock.
+  if (get_debug_mode()) 
+    printf("called release on lock %d 29\n", &kt->lock);
   release(&kt->lock);
-  release(&p->lock);
-  // printf("acquire sleep 3\n");
+  
+  // if (get_debug_mode()) 
+  //   printf("called release on lock %d 30\n", &p->lock);
+  // release(&p->lock);
+
+  if (get_debug_mode())
+    printf("called acquire on lock %d 27\n", lk);
   acquire(lk);
 }
 
@@ -670,19 +725,27 @@ wakeup(void *chan)
   for(p = proc; p < &proc[NPROC]; p++) {
     // if(p != myproc()){
       // // printf("acquire wakeup 1\n");
+      if (get_debug_mode())
+        printf("called acquire on lock %d 28\n", &p->lock);
       acquire(&p->lock);
       struct kthread* kt;
       for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
         // kt = p->kthread;
         if (kt != mykthread()) { // changed to wakeup kthreads from kthread_join
           // // printf("acquire wakeup 2\n");
+          if (get_debug_mode())
+            printf("called acquire on lock %d 29\n", &kt->lock);
           acquire(&kt->lock);
           if(kt->state == KT_SLEEPING && kt->chan == chan) {
             kt->state = KT_RUNNABLE;
           }
+          if (get_debug_mode()) 
+            printf("called release on lock %d 31\n", &kt->lock);
           release(&kt->lock);
         }
       }
+      if (get_debug_mode()) 
+        printf("called release on lock %d 32\n", &p->lock);
       release(&p->lock);
     // }
   }
@@ -700,12 +763,16 @@ kill(int pid)
 
   for(p = proc; p < &proc[NPROC]; p++){
     // printf("acquire kill 1\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 30\n", &p->lock);
     acquire(&p->lock);
     if(p->pid == pid){
       p->killed = 1;
       struct kthread* kt;
       for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
         // printf("acquire kill 2\n");
+        if (get_debug_mode())
+          printf("called acquire on lock %d 31\n", &kt->lock);
         acquire(&kt->lock);
         if (kt->state != KT_UNUSED) {
           kt->killed = 1;
@@ -713,11 +780,17 @@ kill(int pid)
         if (kt->state == KT_SLEEPING) {
           kt->state = KT_RUNNABLE;
         }
+        if (get_debug_mode()) 
+          printf("called release on lock %d 33\n", &kt->lock);
         release(&kt->lock);
       }
+      if (get_debug_mode()) 
+        printf("called release on lock %d 34\n", &p->lock);
       release(&p->lock);
       return 0;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 35\n", &p->lock);
     release(&p->lock);
   }
   return -1;
@@ -729,18 +802,26 @@ setkilled(struct proc *p)
   // printf("called setkilled\n");
   
   // printf("acquire setkilled 1\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 32\n", &p->lock);
   acquire(&p->lock);
   p->killed = 1;
   struct kthread* kt;
   //TODO: if a process is killed, do we kill all the kthreads within it?
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     // printf("acquire setkilled 2\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 33\n", &kt->lock);
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED) {
       kt->killed = 1;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 36\n", &kt->lock);
     release(&kt->lock);
   }
+  if (get_debug_mode()) 
+    printf("called release on lock %d 37\n", &p->lock);
   release(&p->lock);
 }
 
@@ -750,8 +831,12 @@ killed(struct proc *p)
   int k;
   
   // printf("acquire killed\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 34\n", &p->lock);
   acquire(&p->lock);
   k = p->killed;
+  if (get_debug_mode()) 
+    printf("called release on lock %d 38\n", &p->lock);
   release(&p->lock);
   return k;
 }

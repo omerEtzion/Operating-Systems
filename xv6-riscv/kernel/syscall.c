@@ -106,6 +106,8 @@ extern uint64 sys_kthread_id(void);
 extern uint64 sys_kthread_kill(void);
 extern uint64 sys_kthread_exit(void);
 extern uint64 sys_kthread_join(void);
+extern uint64 sys_set_debug_mode(void);
+extern uint64 sys_get_debug_mode(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -136,6 +138,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_kthread_kill]   sys_kthread_kill,
 [SYS_kthread_exit]   sys_kthread_exit,
 [SYS_kthread_join]   sys_kthread_join,
+[SYS_set_debug_mode]   sys_set_debug_mode,
+[SYS_get_debug_mode]   sys_get_debug_mode,
 };
 
 void

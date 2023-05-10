@@ -8,6 +8,8 @@
 
 extern struct proc proc[NPROC];
 
+int debug_mode = 1;
+
 void kthreadinit(struct proc *p)
 {
   // printf("called kthreadinit\n");
@@ -44,9 +46,13 @@ allocktid(struct proc *p)
   // printf("called allocktid\n");
   
   // printf("acquire allocktid\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 3\n", &p->ktid_lock);
   acquire(&p->ktid_lock);
   int ktid = p->nextktid;
   p->nextktid += 1;
+  if (get_debug_mode()) 
+    printf("called release on lock %d 3\n", &p->ktid_lock);
   release(&p->ktid_lock);
 
   return ktid;
@@ -65,10 +71,14 @@ allockthread(struct proc* p)
   struct kthread *kt;
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     // printf("acquire allockthread\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 4\n", &kt->lock);
     acquire(&kt->lock);
     if(kt->state == KT_UNUSED) {
       goto found;
     } else {
+      if (get_debug_mode()) 
+        printf("called release on lock %d 4\n", &kt->lock);
       release(&kt->lock);
     }
   }
@@ -121,13 +131,19 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
   struct proc *p = myproc();
   struct kthread *kt = mykthread();
 
+  printf("p->lock: %d\n", &p->lock);
+  printf("kt->lock: %d\n", &kt->lock);
+
   printf("debugging: before allockthread()\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 5\n", &p->lock);
   acquire(&p->lock); 
   // Allocate kthread.
   if((nkt = allockthread(p)) == 0){
     return -1;
   }
-
+  printf("nkt->lock: %d\n", &nkt->lock);
+  printf("nkt.proc->lock: %d\n", &nkt->proc->lock);  
   printf("debugging: after allockthread()\n");
 
   // copy saved user registers.
@@ -147,7 +163,11 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
 
   ktid = nkt->ktid;
 
+  if (get_debug_mode()) 
+    printf("called release on lock %d 5\n", &nkt->lock);
   release(&nkt->lock);
+  if (get_debug_mode()) 
+    printf("called release on lock %d 6\n", &p->lock);
   release(&p->lock);
 
   printf("debugging: after releasing, ktid = %d\n", ktid);
@@ -161,9 +181,13 @@ int kthread_kill(int ktid) {
   struct kthread *kt;
 
   // printf("acquire kthread_kill 1\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 6\n", &p->lock);
   acquire(&p->lock);
   for(kt = p->kthread; kt < &p->kthread[NKT]; kt++){
     // printf("acquire kthread_kill 2\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 7\n", &kt->lock);
     acquire(&kt->lock);
     if(kt->ktid == ktid && kt->state != KT_UNUSED){
       // found the kthread to kill
@@ -171,11 +195,17 @@ int kthread_kill(int ktid) {
       if (kt->state == KT_SLEEPING) {
         kt->state = KT_RUNNABLE;
       }
+      if (get_debug_mode()) 
+        printf("called release on lock %d 7\n", &kt->lock);
       release(&kt->lock);
       return 0;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 8\n", &kt->lock);
     release(&kt->lock);
   }
+  if (get_debug_mode()) 
+    printf("called release on lock %d 9\n", &p->lock);
   release(&p->lock);
   return -1;
 }
@@ -186,8 +216,12 @@ kthread_killed(struct kthread *kt)
   int k;
   
   // printf("acquire kthread_killed\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 8\n", &kt->lock);
   acquire(&kt->lock);
   k = kt->killed;
+  if (get_debug_mode()) 
+    printf("called release on lock %d 10\n", &kt->lock);
   release(&kt->lock);
   return k;
 }
@@ -198,21 +232,29 @@ void kthread_exit(int status) {
 
   // set the current kthread's state to KT_ZOMBIE and it's xstate
   // printf("acquire kthread_exit 1\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 9\n", &mykt->lock);
   acquire(&mykt->lock);
   mykt->state = KT_ZOMBIE;
   mykt->xstate = status;
+  if (get_debug_mode()) 
+    printf("called release on lock %d 11\n", &mykt->lock);
   release(&mykt->lock);
 
   // wake up any kthread that were waiting to join mykt
   wakeup(mykt);
 
   // printf("acquire kthread_exit 2\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 10\n", &p->lock);
   acquire(&p->lock);
   
   int should_terminate_proc = 1;
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     // printf("acquire kthread_exit 3\n");
+    if (get_debug_mode())
+      printf("called acquire on lock %d 11\n", &kt->lock);
     acquire(&kt->lock);
     if (kt->state != KT_UNUSED && kt->state != KT_ZOMBIE) {
       // found a "living" kthread in the current proc, 
@@ -220,12 +262,17 @@ void kthread_exit(int status) {
       should_terminate_proc = 0;
       break;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 12\n", &kt->lock);
     release(&kt->lock);
   }
+  release(&p->lock);
 
   if (should_terminate_proc) {
     // proc has no "living" kthreads and should b terminated
-    release(&p->lock);
+    if (get_debug_mode()) 
+      printf("called release on lock %d 13\n", &p->lock);
+    // release(&p->lock);
     exit(status);
   }
 
@@ -239,17 +286,25 @@ int kthread_join(int ktid, int* status) {
   struct kthread* kt_to_join = 0;
 
   // printf("acquire kthread_join 1\n");
+  if (get_debug_mode())
+    printf("called acquire on lock %d 12\n", &p->lock);
   acquire(&p->lock);
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
     // printf("acquire kthread_join 2\n");
+    if (get_debug_mode())
+    printf("called acquire on lock %d 14\n", &kt->lock);
     acquire(&kt->lock);
     if (kt->ktid == ktid && kt->state != KT_UNUSED) {
       kt_to_join = kt;
       break;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 14\n", &kt->lock);
     release(&kt->lock);
   }
+  if (get_debug_mode()) 
+    printf("called release on lock %d 15\n", &p->lock);
   release(&p->lock);
 
   if (kt_to_join == 0) {
@@ -273,6 +328,7 @@ int kthread_join(int ktid, int* status) {
 
 void start_func_wrapper() {
   // a wrapper function for start_func that calls kthread_exit after start_func finishes
+  printf("started wrapper func\n");
   mykthread()->start_func();
   kthread_exit(0);
 }
@@ -306,3 +362,10 @@ void start_func_wrapper() {
 //     return 0;
 // }
 
+void set_debug_mode(int i) {
+  debug_mode = i;
+}
+
+int get_debug_mode() {
+  return debug_mode;
+}

@@ -41,3 +41,5 @@ entry("kthread_id");
 entry("kthread_kill");
 entry("kthread_exit");
 entry("kthread_join");
+entry("set_debug_mode");
+entry("get_debug_mode");

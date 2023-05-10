@@ -29,6 +29,8 @@ int kthread_id(void);
 int kthread_kill(int ktid);
 void kthread_exit(int status);
 int kthread_join(int ktid, int* status);
+void set_debug_mode(int i);
+int get_debug_mode();
 
 // ulib.c
 int stat(const char*, struct stat*);

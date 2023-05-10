@@ -132,16 +132,24 @@ exec(char *path, char **argv)
   mykt->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
+  if (get_debug_mode())
+    printf("called acquire on lock %d 1\n", &p->lock);
   acquire(&p->lock);
   struct kthread* kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++) {
+    if (get_debug_mode())
+      printf("called acquire on lock %d 2\n", &kt->lock);
     acquire(&kt->lock);
     if (kt != mykt && kt->state != KT_UNUSED) {
       kt->state = KT_ZOMBIE;
       kt->xstate = 0;
     }
+    if (get_debug_mode()) 
+      printf("called release on lock %d 1\n", &kt->lock);
     release(&kt->lock);
   }
+  if (get_debug_mode()) 
+    printf("called release on lock %d 2\n", &p->ktid_lock);
   release(&p->lock);
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)

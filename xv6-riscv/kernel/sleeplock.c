@@ -21,8 +21,8 @@ initsleeplock(struct sleeplock *lk, char *name)
 void
 acquiresleep(struct sleeplock *lk)
 {
-  // printf("called acquiresleep\n");
-
+  if (get_debug_mode())
+    printf("called acquire on lock %d 35\n", &lk->lk);
   acquire(&lk->lk);
   // // printf("acquire acquiresleep\n");
   while (lk->locked) {
@@ -31,6 +31,8 @@ acquiresleep(struct sleeplock *lk)
   }
   lk->locked = 1;
   lk->pid = myproc()->pid;
+  if (get_debug_mode())
+    printf("called release on lock %d 39\n", &lk->lk);
   release(&lk->lk);
   // printf("release acquiresleep\n");
 }
@@ -38,10 +40,14 @@ acquiresleep(struct sleeplock *lk)
 void
 releasesleep(struct sleeplock *lk)
 {
+  if (get_debug_mode())
+    printf("called acquire on lock %d 36\n", &lk->lk);
   acquire(&lk->lk);
   lk->locked = 0;
   lk->pid = 0;
   wakeup(lk);
+  if (get_debug_mode())
+    printf("called release on lock %d 40\n", &lk->lk);
   release(&lk->lk);
 }
 
@@ -50,8 +56,12 @@ holdingsleep(struct sleeplock *lk)
 {
   int r;
   
+  if (get_debug_mode())
+    printf("called acquire on lock %d 37\n", &lk->lk);
   acquire(&lk->lk);
   r = lk->locked && (lk->pid == myproc()->pid);
+  if (get_debug_mode())
+    printf("called release on lock %d 41\n", &lk->lk);
   release(&lk->lk);
   return r;
 }

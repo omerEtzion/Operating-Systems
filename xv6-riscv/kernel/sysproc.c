@@ -140,3 +140,19 @@ sys_kthread_join(void)
   argaddr(1, &status);
   return kthread_join(ktid, (int*)status);
 }
+
+uint64
+sys_set_debug_mode(void)
+{
+  int i;
+  argint(0, &i);
+
+  set_debug_mode(i);
+  return 0;
+}
+
+uint64
+sys_get_debug_mode(void)
+{
+  return get_debug_mode();
+}

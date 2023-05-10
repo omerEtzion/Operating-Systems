@@ -25,3 +25,5 @@
 #define SYS_kthread_kill  24
 #define SYS_kthread_exit  25
 #define SYS_kthread_join  26
+#define SYS_set_debug_mode  27
+#define SYS_get_debug_mode  28
