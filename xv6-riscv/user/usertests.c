@@ -2626,27 +2626,39 @@ void kthread_start_func(void){
 
 void klttest()
 {
+  printf("debugging: before malloc\n");
   uint64 stack_a = (uint64)malloc(MAX_STACK_SIZE);
   uint64 stack_b = (uint64)malloc(MAX_STACK_SIZE);
+  printf("debugging: after malloc\n");
 
   int kt_a = kthread_create((void *(*)())kthread_start_func, (void*)stack_a, MAX_STACK_SIZE);
+  printf("debugging: after kthread create num1\n");
   if(kt_a <= 0){
     printf("kthread_create failed\n");
     exit(1);
   }
+  exit(0);
+
   int kt_b = kthread_create((void *(*)())kthread_start_func, (void*)stack_b, MAX_STACK_SIZE);
+    printf("debugging: after kthread create num2\n");
+
   if(kt_a <= 0){
     printf("kthread_create failed\n");
     exit(1);
   }
 
   int joined = kthread_join(kt_a, 0);
+  printf("debugging: after kthread join 1\n");
+
   if(joined != 0){
     printf("kthread_join failed\n");
     exit(1);
   }
 
   joined = kthread_join(kt_b, 0);
+
+  printf("debugging: after kthread join 2\n");
+
   if(joined != 0){
     printf("kthread_join failed\n");
     exit(1);
@@ -2654,6 +2666,8 @@ void klttest()
 
   free((void *)stack_a);
   free((void *)stack_b);
+
+  printf("debugging: after free\n");
 }
 
 struct test {

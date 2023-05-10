@@ -56,6 +56,7 @@ allocktid(struct proc *p)
 // If found, initialize state required to run in the kernel,
 // and return with kt->lock held.
 // If there are no free kthreads, return 0.
+// p-.lock need to be locked before invoking this function
 struct kthread*
 allockthread(struct proc* p)
 {
@@ -114,15 +115,20 @@ struct trapframe *get_kthread_trapframe(struct proc *p, struct kthread *kt)
 }
 
 int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
+  printf("debugging: start of kthread create\n");
   int ktid;
   struct kthread *nkt;
   struct proc *p = myproc();
   struct kthread *kt = mykthread();
 
+  printf("debugging: before allockthread()\n");
+  acquire(&p->lock); 
   // Allocate kthread.
   if((nkt = allockthread(p)) == 0){
     return -1;
   }
+
+  printf("debugging: after allockthread()\n");
 
   // copy saved user registers.
   *(nkt->trapframe) = *(kt->trapframe);
@@ -142,6 +148,10 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size) {
   ktid = nkt->ktid;
 
   release(&nkt->lock);
+  release(&p->lock);
+
+  printf("debugging: after releasing, ktid = %d\n", ktid);
+
 
   return ktid;
 }

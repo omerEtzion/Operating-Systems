@@ -526,6 +526,7 @@ scheduler(void)
             kt->state = KT_RUNNING;
             // printf("found kthread %d\n", kt);
             c->kthread = kt;
+            printf("running thread -> %s\n", &kt->proc->name);
             swtch(&c->context, &kt->context);
           }
           release(&kt->lock);
