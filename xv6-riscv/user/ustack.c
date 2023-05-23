@@ -26,9 +26,13 @@ void* ustack_malloc(uint32 len) {
     }
 
     void* prev_buffer_end = 0;
+
+
+    // Omer: This should be a StackNode*, initialized to empty and filled along the function
     void* new_node_ptr;
     if (stack_top != 0){
         prev_buffer_end = stack_top->buffer + stack_top->length;
+        printf("prev_buffer_end = %d\n", prev_buffer_end);
     }
     void* new_end = (uint8*)prev_buffer_end + len;
     printf("new end = %d, heap_end = %d, stack_top = %d\n", new_end, heap_end, stack_top);
@@ -43,13 +47,17 @@ void* ustack_malloc(uint32 len) {
     if (new_end > heap_end){
         printf("calling sbrk\n");
         // new_node_ptr = sbrk(len);  // allocate memory using sbrk()
+        
+        // Omer: we should store sbrk's return value in new_node_ptr->buffer
         new_node_ptr = sbrk(aligned_size); // allocate memory using sbrk()
+        
         // heap_end = heap_end + PGSIZE;
         heap_end = heap_end + aligned_size;
 
         if (new_node_ptr == (void*)-1)
             return (void*)-1;  // sbrk() failed
     } else {
+        // Omer: we should store this value in new_node_ptr->buffer
         new_node_ptr = (uint8*)prev_buffer_end + ((alignment - 1) & ~ (alignment - 1));
     }
     // else
@@ -66,6 +74,16 @@ void* ustack_malloc(uint32 len) {
     
     return new_node_ptr;
 }
+
+// Omer: we should initialize stack_top as a StackNode* with buffer 0 (instead of 
+// checking stack_top == 0, we check stack_top->buffer == 0).
+// Then, when allocating a new buffer (either on the same page or in a new page)
+// we have 2 cases:
+// 1. if stack_top->buffer == 0: update stack_top->buffer to point to the start of
+// the new page, length = len and prev = 0. 
+// 2. else: create a new StackNode new_node, new_node->buffer = end of previous
+// buffer or start of new page (depending if we need a new page), length = len,
+// prev = stack_top. And then stack_top = new_node.
 
 
 int ustack_free() {
