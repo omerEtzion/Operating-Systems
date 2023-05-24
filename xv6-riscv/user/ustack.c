@@ -4,124 +4,77 @@
 #include "ustack.h"
 
 
-// define a struct to represent a stack node
-typedef struct StackNode {
+
+
+
+typedef struct Node {
     void* buffer;
     uint32 length;
-    struct StackNode* prev;
-} StackNode;
+    struct Node* prev;
+} Node;
 
-StackNode* stack_top = 0;
-void* heap_end = 0;
+static char* stack_base = 0;
+static char* stack_top = 0;
+static Node* stack_list = 0;
 
 void* ustack_malloc(uint32 len) {
-    
-    // check if len exceeds the maximum allowed size
-    if (len > MAX_ALLOC_SIZE)
-        return (void*)-1;  
-    
-    // No allocation has been made yet, initialize the stack
-    if (stack_top == 0) {
-        heap_end = sbrk(0);
+    if (len > MAX_ALLOC_SIZE) {
+        return (void*)-1;  // len exceeds the maximum allowed size
     }
 
-    void* prev_buffer_end = 0;
-
-
-    // Omer: This should be a StackNode*, initialized to empty and filled along the function
-    void* new_node_ptr;
-    if (stack_top != 0){
-        prev_buffer_end = stack_top->buffer + stack_top->length;
-        printf("prev_buffer_end = %d\n", prev_buffer_end);
+    if (stack_base == 0) {
+        // first call to ustack_malloc, allocate a new page
+        stack_base = (char*)sbrk(PGSIZE);
+        stack_top = stack_base;
     }
-    void* new_end = (uint8*)prev_buffer_end + len;
-    printf("new end = %d, heap_end = %d, stack_top = %d\n", new_end, heap_end, stack_top);
 
-    // Calculate the required alignment for StackNode struct
-    uint32 alignment = sizeof(StackNode);
-
-    // Calculate the aligned size
-    uint32 aligned_size = (len + alignment - 1) & ~(alignment - 1);
-
-    // sbrk is needed
-    if (new_end > heap_end){
-        printf("calling sbrk\n");
-        // new_node_ptr = sbrk(len);  // allocate memory using sbrk()
-        
-        // Omer: we should store sbrk's return value in new_node_ptr->buffer
-        new_node_ptr = sbrk(aligned_size); // allocate memory using sbrk()
-        
-        // heap_end = heap_end + PGSIZE;
-        heap_end = heap_end + aligned_size;
-
-        if (new_node_ptr == (void*)-1)
-            return (void*)-1;  // sbrk() failed
-    } else {
-        // Omer: we should store this value in new_node_ptr->buffer
-        new_node_ptr = (uint8*)prev_buffer_end + ((alignment - 1) & ~ (alignment - 1));
+    if ((uint64)(stack_top + len) > (uint64)(stack_base + PGSIZE)) {
+        // not enough space in the current page, allocate a new page
+        printf("not enough space in the current page, allocate a new page\n");
+        stack_base = (char*)sbrk(PGSIZE);
+        stack_top = stack_base;
     }
-    // else
-        // new_node_ptr = new_end;
 
-    printf("new_node_ptr = %d\n", new_node_ptr);
-    // create a new stack node and update the stack top
-    StackNode* node = (StackNode*)new_node_ptr;
-    node->buffer = new_node_ptr;
+    Node* node = (Node*)stack_top;
+    stack_top += sizeof(Node);
+
+    node->buffer = stack_top;
     node->length = len;
-    node->prev = stack_top;
-    stack_top = node;
-    printf("node - %d\nbuff - %d\nlen - %d\nprev - %d\n\n", stack_top, stack_top->buffer, stack_top->length, stack_top->prev);
+    node->prev = stack_list;
+    stack_list = node;
+
+    stack_top += len; 
     
-    return new_node_ptr;
+    // printf("node - %d\nbuff - %d\nlen - %d\nprev - %d\n\n", stack_list, stack_list->buffer, stack_list->length, stack_list->prev);
+
+    return node->buffer;
 }
-
-// Omer: we should initialize stack_top as a StackNode* with buffer 0 (instead of 
-// checking stack_top == 0, we check stack_top->buffer == 0).
-// Then, when allocating a new buffer (either on the same page or in a new page)
-// we have 2 cases:
-// 1. if stack_top->buffer == 0: update stack_top->buffer to point to the start of
-// the new page, length = len and prev = 0. 
-// 2. else: create a new StackNode new_node, new_node->buffer = end of previous
-// buffer or start of new page (depending if we need a new page), length = len,
-// prev = stack_top. And then stack_top = new_node.
-
 
 int ustack_free() {
-    printf("\n\tstart free\n");
 
-    StackNode* node = stack_top;
-    while(node != 0){
-        printf("\n\tcurr size - %d\n", node->length);
-        node = node->prev;
+    if (stack_list == 0) {
+        return -1;  // stack is empty
     }
 
-    if (stack_top == 0)
-        return -1;  // Stack is empty
+    Node* node = stack_list;
+    stack_list = stack_list->prev;
     
-    printf("\tafter first if\n");
-    // get the buffer and length of the top node
-    void* buffer = stack_top->buffer;
-    uint32 length = stack_top->length;
+    stack_top = node->buffer;
+    stack_top -= sizeof(Node);
+    
+    // stack_base = (char*)node;
 
-    // free the buffer using sbrk() if it crosses a page boundary
-    void* new_end = (uint8*)buffer - length;
-    void* page_boundary = (void*)((uint64)new_end & ~(PGSIZE - 1));
-    printf("\tbefore if\n");
+    // save length before releasing page (edge case)
+    int length = node->length;
 
-    // update the stack top and release the memory of the top node
-    stack_top = stack_top->prev;
-
-    // void* page_boundary = (void*)PGROUNDDOWN((uint32)new_end);
-    if (page_boundary < heap_end) {
-        printf("\tinside if\n");
-        uint32 diff = (uint8*)heap_end - (uint8*)page_boundary;
-        printf("\tdiff = %d\n", diff);
-        sbrk(-diff);
-        heap_end = page_boundary;
+    // TODO if allocated more then 1 page
+    if (stack_top <= stack_base) {
+        // All buffers have been freed, release the page
+        printf("releasing page\n");
+        sbrk(-PGSIZE);
+        stack_base -= PGSIZE;
     }
 
-    printf("\tafter all\n\n");
-
-    // return the length of the freed buffer
     return length;
 }
+

@@ -4,7 +4,7 @@
 #include "user/ustack.h"
 
 
-#define BUFFER_SIZES { 50, 128, 300, 512}
+#define BUFFER_SIZES { 50, 128, 300, 500, 10, 52, 222, 511, 500 ,500, 500, 500 ,500 ,500 ,500 ,500}
 
 void test_allocator() {
 
@@ -15,7 +15,7 @@ void test_allocator() {
         state = "TEST PASSED";
     else
         state = "TEST FAILED";
-    printf("Allocation of a large buffer test - %s\n", state);
+    printf("Allocation of a large buffer test - %s\n\n", state);
 
 
     // Test empty stack case
@@ -25,8 +25,7 @@ void test_allocator() {
     else
         state = "TEST FAILED";
 
-    printf("Free of empty 'heap' - %s\n", state);
-
+    printf("Free of empty 'heap' - %s\n\n", state);
 
     int buffer_sizes[] = BUFFER_SIZES;
     int num_buffers = sizeof(buffer_sizes) / sizeof(buffer_sizes[0]);
@@ -42,15 +41,18 @@ void test_allocator() {
             break;
         }
         else
-            printf("Buffer %d allocated successfully\n", i);
+            printf("Buffer %d allocated with %d bytes successfully\n", i, buffer_sizes[i]);
     }
 
-    printf("Allocation of buffers of different sizes - %s\n", state);
+    printf("Allocation of buffers of different sizes - %s\n\n", state);
 
 
     // Free buffers in reverse order
     state = "TEST PASSED";
     for (int i = num_buffers - 1; i >= 0; i--) {
+        // ((char*)buffers[i])[0] = 'A';
+        // ((char*)buffers[i])[1] = '\0';
+        // printf("%s\n", buffers[i]);
         int length = ustack_free();
         if (length == -1){
             printf("Error occured\n");
@@ -65,10 +67,10 @@ void test_allocator() {
 
         }
         else
-            printf("Buffer of length %d freed\n", length);
+            printf("Buffer of length %d freed successfully\n", length);
     }
 
-    printf("Free buffers in reverse order - %s\n", state);
+    printf("Free buffers in reverse order - %s\n\n", state);
 
     // try combinations of malloc and free? m m f m f f
     // TODO check with len = 0
