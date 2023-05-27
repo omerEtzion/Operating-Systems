@@ -4,6 +4,8 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
+struct pg_metadata;
+struct pg_node;
 struct spinlock;
 struct sleeplock;
 struct stat;
@@ -109,6 +111,8 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+int             swap_out(uint64 v_addr, int to_swapFile);
+int             swap_in(uint64 v_addr, int from_swapFile);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

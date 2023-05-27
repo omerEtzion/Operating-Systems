@@ -18,17 +18,17 @@ static char* stack_top = 0;
 static Node* stack_list = 0;
 
 void* ustack_malloc(uint32 len) {
-    if (len > MAX_ALLOC_SIZE) {
+    if(len > MAX_ALLOC_SIZE) {
         return (void*)-1;  // len exceeds the maximum allowed size
     }
 
-    if (stack_base == 0) {
+    if(stack_base == 0) {
         // first call to ustack_malloc, allocate a new page
         stack_base = (char*)sbrk(PGSIZE);
         stack_top = stack_base;
     }
 
-    if ((uint64)(stack_top + len) > (uint64)(stack_base + PGSIZE)) {
+    if((uint64)(stack_top + len) > (uint64)(stack_base + PGSIZE)) {
         // not enough space in the current page, allocate a new page
         printf("not enough space in the current page, allocate a new page\n");
         stack_base = (char*)sbrk(PGSIZE);
@@ -52,7 +52,7 @@ void* ustack_malloc(uint32 len) {
 
 int ustack_free() {
 
-    if (stack_list == 0) {
+    if(stack_list == 0) {
         return -1;  // stack is empty
     }
 
@@ -68,7 +68,7 @@ int ustack_free() {
     int length = node->length;
 
     // TODO if allocated more then 1 page
-    if (stack_top <= stack_base) {
+    if(stack_top <= stack_base) {
         // All buffers have been freed, release the page
         printf("releasing page\n");
         sbrk(-PGSIZE);

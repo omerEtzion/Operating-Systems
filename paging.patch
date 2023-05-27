@@ -102,7 +102,7 @@ index 25fa226..a705538 100644
 +
 +      begin_op();
 +      ilock(f->ip);
-+      if ((r = writei(f->ip, 0, addr + i, f->off, n1)) > 0)
++      if((r = writei(f->ip, 0, addr + i, f->off, n1)) > 0)
 +        f->off += r;
 +      iunlock(f->ip);
 +      end_op();
@@ -236,7 +236,7 @@ index c6bab15..a3f5040 100644
 +  struct inode * in = create(path, T_FILE, 0, 0);
 +  iunlock(in);
 +  p->swapFile = filealloc();
-+  if (p->swapFile == 0)
++  if(p->swapFile == 0)
 +    panic("no slot for files on /store");
 +
 +  p->swapFile->ip = in;

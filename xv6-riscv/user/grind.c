@@ -31,7 +31,7 @@ do_rand(unsigned long *ctx)
     hi = x / 127773;
     lo = x % 127773;
     x = 16807 * lo - 2836 * hi;
-    if (x < 0)
+    if(x < 0)
         x += 0x7fffffff;
     /* Transform to [0, 0x7ffffffd] range. */
     x--;

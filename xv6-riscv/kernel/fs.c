@@ -779,7 +779,7 @@ createSwapFile(struct proc* p)
   struct inode * in = create(path, T_FILE, 0, 0);
   iunlock(in);
   p->swapFile = filealloc();
-  if (p->swapFile == 0)
+  if(p->swapFile == 0)
     panic("no slot for files on /store");
 
   p->swapFile->ip = in;

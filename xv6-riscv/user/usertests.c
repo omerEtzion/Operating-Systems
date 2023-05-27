@@ -246,7 +246,7 @@ rwsbrk()
     exit(1);
   }
   
-  if ((uint64) sbrk(-8192) ==  0xffffffffffffffffLL) {
+  if((uint64) sbrk(-8192) ==  0xffffffffffffffffLL) {
     printf("sbrk(rwsbrk) shrink failed\n");
     exit(1);
   }
@@ -699,7 +699,7 @@ exectest(char *s)
     }
     // won't get to here
   }
-  if (wait(&xstatus) != pid) {
+  if(wait(&xstatus) != pid) {
     printf("%s: wait failed!\n", s);
   }
   if(xstatus != 0)
@@ -710,7 +710,7 @@ exectest(char *s)
     printf("%s: open failed\n", s);
     exit(1);
   }
-  if (read(fd, buf, 2) != 2) {
+  if(read(fd, buf, 2) != 2) {
     printf("%s: read failed\n", s);
     exit(1);
   }
@@ -2057,7 +2057,7 @@ forktest(char *s)
       exit(0);
   }
 
-  if (n == 0) {
+  if(n == 0) {
     printf("%s: no fork at all!\n", s);
     exit(1);
   }
@@ -2157,7 +2157,7 @@ sbrkmuch(char *s)
   a = sbrk(0);
   amt = BIG - (uint64)a;
   p = sbrk(amt);
-  if (p != a) {
+  if(p != a) {
     printf("%s: sbrk test failed to grow big address space; enough phys mem?\n", s);
     exit(1);
   }
@@ -2336,7 +2336,7 @@ sbrkarg(char *s)
     printf("%s: open sbrk failed\n", s);
     exit(1);
   }
-  if ((n = write(fd, a, PGSIZE)) < 0) {
+  if((n = write(fd, a, PGSIZE)) < 0) {
     printf("%s: write sbrk failed\n", s);
     exit(1);
   }
@@ -2474,7 +2474,7 @@ void argptest(char *s)
 {
   int fd;
   fd = open("init", O_RDONLY);
-  if (fd < 0) {
+  if(fd < 0) {
     printf("%s: open failed\n", s);
     exit(1);
   }

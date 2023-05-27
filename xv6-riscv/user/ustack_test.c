@@ -11,7 +11,7 @@ void test_allocator() {
     char* state;
     // Attempt to allocate a buffer larger than the maximum allowed size
     void* large_buffer = ustack_malloc(MAX_ALLOC_SIZE * 2);
-    if (large_buffer == (void*)-1)
+    if(large_buffer == (void*)-1)
         state = "TEST PASSED";
     else
         state = "TEST FAILED";
@@ -20,7 +20,7 @@ void test_allocator() {
 
     // Test empty stack case
     int length = ustack_free();
-    if (length == -1)
+    if(length == -1)
         state = "TEST PASSED";
     else
         state = "TEST FAILED";
@@ -35,7 +35,7 @@ void test_allocator() {
     state = "TEST PASSED";
     for (int i = 0; i < num_buffers; i++) {
         buffers[i] = ustack_malloc(buffer_sizes[i]);
-        if (buffers[i] == (void*)-1){
+        if(buffers[i] == (void*)-1){
             printf("Allocation of buffer %d failed\n", i);
             state = "TEST FAILED";
             break;
@@ -54,13 +54,13 @@ void test_allocator() {
         // ((char*)buffers[i])[1] = '\0';
         // printf("%s\n", buffers[i]);
         int length = ustack_free();
-        if (length == -1){
+        if(length == -1){
             printf("Error occured\n");
             state = "TEST FAILED";
             break;
 
         }
-        else if (length != buffer_sizes[i]){
+        else if(length != buffer_sizes[i]){
             printf("Number of bytes freed memory does not match tonumber of bytes allocated - %d vs %d\n", length, buffer_sizes[i]);
             state = "TEST FAILED";
             break;

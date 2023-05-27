@@ -120,10 +120,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
-  // *****  
   // Set paging metadata to 0
   memset(&p->pg_m, 0, sizeof(p->pg_m));
-  // *****  
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -168,11 +166,11 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
-  // *****  
+  // Clear paging metadata
+  memset(&p->pg_m, 0, sizeof(p->pg_m));
   // Remove the process' swapFile
   if(p->swapFile)
     removeSwapFile(p);
-  // *****  
   p->swapFile = 0;
   p->sz = 0;
   p->pid = 0;
@@ -205,6 +203,7 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+  p->pg_m.num_of_pgs_in_memory += 1; // Don't add the page to the linked list because it's not swappable
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
@@ -213,6 +212,7 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+  p->pg_m.num_of_pgs_in_memory += 1; // Don't add the page to the linked list because it's not swappable
 
   return pagetable;
 }
@@ -274,12 +274,26 @@ growproc(int n)
   struct proc *p = myproc();
 
   sz = p->sz;
+  uint prev_sz_round_up = PGROUNDUP(p->sz);
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+
+    while(prev_sz_round_up < sz) {
+      if(p->pg_m.num_of_pgs_in_memory + p->pg_m.num_of_pgs_in_swapFile >= 32) {
+        // TODO: terminate process?
+      } else if(p->pg_m.num_of_pgs_in_memory == 16) {
+        // TODO: create new pg_node* for the new page, 
+        // add this page_node* to the memory list,
+        // swap_out() 
+      }
+    }
+
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+
+
   }
   p->sz = sz;
   return 0;
@@ -305,6 +319,9 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+
+  np->pg_m = p->pg_m; // copy the paging metadata 
+
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -530,7 +547,7 @@ forkret(void)
   // Still holding p->lock from scheduler.
   release(&myproc()->lock);
 
-  if (first) {
+  if(first) {
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
@@ -673,12 +690,82 @@ procdump(void)
   }
 }
 
-// *****  
 int
 swap_pages()
 {
   // TODO: this function will swap a page from memory and a page from the swapFile
   // and update the pg_m datastructure accordingly
+}
+
+int
+swap_out(uint64 v_addr, int to_swapFile)
+{
+  struct proc* p = myproc();
+
+  if(to_swapFile) {
+    //TODO: allocate memory for this page and copy it from swapFile
+  }
+
+  uint64 mem_pgs[] = p->pg_m.memory_pgs;
+  int found = 0;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if(mem_pgs[i] == v_addr) {
+      found = 1;
+      mem_pgs[i] = 0;
+      printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
+      break;
+    }
+  }
+
+  if(!found) {
+    panic("swap_out: v_addr was not in memory");
+  } 
+  
+  p->pg_m.num_of_pgs_in_memory -= 1;
+
+  // Turn on swapped flag and turn off valid flag
+  pte_t* pte = walk(p->pagetable, v_addr, 0);
+  *pte = (*pte | PTE_PG) & !PTE_V; 
+  
+  
+  // Move a page_node* from memory to swapFile,
+  // copy the page to swapFile,
+  // free the memory,
+  // inc num_of_pages_in_swapFile
+  // dec num_of_pages_in_memory
+  // set PTE_PG and turn off PTE_V
+
+  // if to_swapFile == 1, select a page based oin policy, else remove v_addr
+}
+
+int
+swap_in(uint64 v_addr, int from_swapFile)
+{  
+  struct proc* p = myproc();
+  uint64 mem_pgs[] = p->pg_m.memory_pgs;
+  int found = 0;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if(mem_pgs[i] == 0) {
+      found = 1;
+      mem_pgs[i] = v_addr;
+      printf("added page at v_addr %x to memory_pgs of process %d\n", v_addr, p->pid);
+      break;
+    }
+  }
+
+  if(!found) {
+    panic("swap_in: no free slots");
+  }
+
+  p->pg_m.num_of_pgs_in_memory += 1;
+
+  // Turn on swapped flag and turn off valid flag
+  pte_t* pte = walk(p->pagetable, v_addr, 0);
+  *pte = (*pte & !PTE_PG) | PTE_V; // turn off swapped flag and turn on valid flag
+
+  if(from_swapFile) {
+    //TODO: allocate memory for this page and copy it from swapFile
+  }
 }
 
 // TODO: we need to check where in the code are new pages created and add their ptes to the
@@ -688,4 +775,3 @@ swap_pages()
 // TODO: we need to save the init and shell pids to make sure we exclude them from the 
 // paging system.
 
-// *****  
