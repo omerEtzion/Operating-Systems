@@ -320,7 +320,8 @@ fork(void)
     return -1;
   }
 
-  np->pg_m = p->pg_m; // copy the paging metadata 
+  // copy the paging metadata 
+  np->pg_m = p->pg_m; 
 
   np->sz = p->sz;
 
@@ -387,6 +388,9 @@ exit(int status)
       p->ofile[fd] = 0;
     }
   }
+
+  // Clear paging metadata
+  memset(&p->pg_m, 0, sizeof(p->pg_m));
 
   begin_op();
   iput(p->cwd);
