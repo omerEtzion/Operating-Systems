@@ -230,11 +230,11 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   oldsz = PGROUNDUP(oldsz);
   for(a = oldsz; a < newsz; a += PGSIZE){
-    // If a process allocates more than 32 pages, terminate it
-    if(p->pg_m.num_of_pgs_in_memory + p->pg_m.num_of_pgs_in_swapFile >= MAX_TOTAL_PAGES) {
-      printf("process %s exceeded %d pages\n", p->pid, MAX_TOTAL_PAGES);
-      exit(1);
-    }
+    // // If a process allocates more than 32 pages, terminate it
+    // if(p->pg_m.num_of_pgs_in_memory + p->pg_m.num_of_pgs_in_swapFile >= MAX_TOTAL_PAGES) {
+    //   printf("process %s exceeded %d pages\n", p->pid, MAX_TOTAL_PAGES);
+    //   exit(1);
+    // }
 
     mem = kalloc();
     if(mem == 0){
@@ -248,12 +248,12 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
       return 0;
     }
     
-    // If there are too many pages in memory, swap one out
-    if(p->pg_m.num_of_pgs_in_memory == MAX_PSYC_PAGES) {
-      swap_out(0, 1); // select a page based on policy to move to swapFile
-    }
-    // Insert the new page to the first free slot in pg_m.memory_pgs
-    swap_in(a, 0);
+    // // If there are too many pages in memory, swap one out
+    // if(p->pg_m.num_of_pgs_in_memory == MAX_PSYC_PAGES) {
+    //   swap_out(0, 1); // select a page based on policy to move to swapFile
+    // }
+    // // Insert the new page to the first free slot in pg_m.memory_pgs
+    // swap_in(a, 0);
 
     // uint64 mem_pgs[] = p->pg_m.memory_pgs;
     // for(int i = 0; i < MAX_PSYC_PAGES; i++) {
@@ -281,11 +281,13 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
   if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)) {
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-    for(uint64 a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE){
-      // Update p->pg_metadata
-      uvmunmap(pagetable, a, 1, 1);
-      swap_out(a, 0); 
-    }
+    // for(uint64 a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE){
+    //   // Update p->pg_metadata
+    //   uvmunmap(pagetable, a, 1, 1);
+    //   // swap_out(a, 0); 
+    // }
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
   }
 
   return newsz;
@@ -318,8 +320,8 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 {
   if(sz > 0)
     for(uint64 a = 0; a < PGROUNDUP(sz); a += PGSIZE){
-      // Update the process' paging metadata
       uvmunmap(pagetable, a, 1, 1);
+      // Update the process' paging metadata
       swap_out(a, 0); 
     }
     // uvmunmap(pagetable, 0, PGROUNDUP(sz)/PGSIZE, 1);
