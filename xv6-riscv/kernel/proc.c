@@ -679,10 +679,18 @@ procdump(void)
 }
 
 int
-swap_pages()
+choose_and_swap(uint64 v_addr_to_swap_in)
 {
-  // TODO: this function will swap a page from memory and a page from the swapFile
-  // and update the pg_m datastructure accordingly
+  struct proc* p = myproc();
+  
+  uint64 v_addr_to_swap_out = choose_pg_to_swap();
+  // pte_t* pte = walk(p->pagetable, to_swap_out, 0);
+
+  swap_out(v_addr_to_swap_out, 1);
+
+  uint64 v_addr_of_new
+
+
 }
 
 int
@@ -690,14 +698,39 @@ swap_out(uint64 v_addr, int to_swapFile)
 {
   struct proc* p = myproc();
 
-  int pg_indx;
+  pte_t* pte = walk(p->pagetable, v_addr, 0);
+  
+  if(to_swapFile) {
+    int pg_indx;
+    uint64 sf_pgs[] = p->pg_m.swapFile_pgs;
+    int found = 0;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(sf_pgs[i] == 0) {
+        found = 1;
+        sf_pgs[i] = v_addr;
+        pg_indx = i;
+        printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
+        break;
+      }
+    }
+
+    if(!found) {
+      panic("swap_out: no space in swapFile");
+    }
+    
+    char* pa = (char*)PTE2PA(*pte);
+    if(writeToSwapFile(p, pa, pg_indx*PGSIZE, PGSIZE) < 0)
+      panic("swap_out: writeToSwapFile failed");
+    uvmunmap(p->pagetable, v_addr, 1, 1); // Unmap the page and free the memory
+    *pte = *pte | PTE_PG; // Turn on swapped flag
+  }
+  
   uint64 mem_pgs[] = p->pg_m.memory_pgs;
   int found = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
     if(mem_pgs[i] == v_addr) {
       found = 1;
       mem_pgs[i] = 0;
-      pg_indx = i;
       printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
       break;
     }
@@ -709,16 +742,9 @@ swap_out(uint64 v_addr, int to_swapFile)
   
   p->pg_m.num_of_pgs_in_memory -= 1;
 
-  pte_t* pte = walk(p->pagetable, v_addr, 0);
   *pte = *pte & !PTE_V; // Turn off valid flag
   
-  if(to_swapFile) {
-    char* pa = (char*)PTE2PA(*pte);
-    if(writeToSwapFile(p, pa, pg_indx*PGSIZE, PGSIZE) < 0)
-      panic("swap_out: writeToSwapFile failed");
-    uvmunmap(p->pagetable, v_addr, 1, 1); // Unmap the page and free the memory
-    *pte = *pte | PTE_PG; // Turn on swapped flag
-  }
+  
 
   // Move a page_node* from memory to swapFile,
   // copy the page to swapFile,
@@ -806,7 +832,8 @@ uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 
     // If there are too many pages in memory, swap one out
     if(p->pg_m.num_of_pgs_in_memory == MAX_PSYC_PAGES) {
-      swap_out(0, 1); // select a page based on policy to move to swapFile
+      uint64 v_addr = choose_pg_to_swap();
+      swap_out(v_addr, 1); // select a page based on policy to move to swapFile
     }
 
     // Allocate page in memory
@@ -835,11 +862,12 @@ uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   return output;
 }
 
+uint64 
+choose_pg_to_swap()
+{
+  return myproc()->pg_m.memory_pgs[4];
+}
 
-// TODO: we need to check where in the code are new pages created and add their ptes to the
-// pg_m data structure. We need to make sure that the trampoline and trapframe (I think those
-// are the only two) are never swapped out.
-
-// TODO: we need to save the init and shell pids to make sure we exclude them from the 
-// paging system.
-
+// TODO: we were wrong. we cant unmap a page that was swapped to the swapFile. The process needs
+// to think that its in the same v_addr. we need to remap the old v_addr to the free p_addr in ram (
+// of the page we just swapped out of ram).
