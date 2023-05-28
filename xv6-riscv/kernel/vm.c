@@ -283,8 +283,8 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     for(uint64 a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE){
       // Update p->pg_metadata
-      swap_out(a, 0); 
       uvmunmap(pagetable, a, 1, 1);
+      swap_out(a, 0); 
     }
   }
 
@@ -319,8 +319,8 @@ uvmfree(pagetable_t pagetable, uint64 sz)
   if(sz > 0)
     for(uint64 a = 0; a < PGROUNDUP(sz); a += PGSIZE){
       // Update the process' paging metadata
-      swap_out(a, 0); 
       uvmunmap(pagetable, a, 1, 1);
+      swap_out(a, 0); 
     }
     // uvmunmap(pagetable, 0, PGROUNDUP(sz)/PGSIZE, 1);
   freewalk(pagetable);

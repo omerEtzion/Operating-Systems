@@ -34,7 +34,7 @@ exec(char *path, char **argv)
     goto bad;
   if(elf.magic != ELF_MAGIC)
     goto bad;
-
+  
   if((pagetable = proc_pagetable(p)) == 0)
     goto bad;
 

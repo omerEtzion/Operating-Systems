@@ -279,21 +279,8 @@ growproc(int n)
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
-
-    while(prev_sz_round_up < sz) {
-      if(p->pg_m.num_of_pgs_in_memory + p->pg_m.num_of_pgs_in_swapFile >= 32) {
-        // TODO: terminate process?
-      } else if(p->pg_m.num_of_pgs_in_memory == 16) {
-        // TODO: create new pg_node* for the new page, 
-        // add this page_node* to the memory list,
-        // swap_out() 
-      }
-    }
-
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-
-
   }
   p->sz = sz;
   return 0;
@@ -388,9 +375,6 @@ exit(int status)
       p->ofile[fd] = 0;
     }
   }
-
-  // Clear paging metadata
-  memset(&p->pg_m, 0, sizeof(p->pg_m));
 
   begin_op();
   iput(p->cwd);
@@ -706,16 +690,14 @@ swap_out(uint64 v_addr, int to_swapFile)
 {
   struct proc* p = myproc();
 
-  if(to_swapFile) {
-    //TODO: allocate memory for this page and copy it from swapFile
-  }
-
+  int pg_indx;
   uint64 mem_pgs[] = p->pg_m.memory_pgs;
   int found = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
     if(mem_pgs[i] == v_addr) {
       found = 1;
       mem_pgs[i] = 0;
+      pg_indx = i;
       printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
       break;
     }
@@ -727,11 +709,17 @@ swap_out(uint64 v_addr, int to_swapFile)
   
   p->pg_m.num_of_pgs_in_memory -= 1;
 
-  // Turn on swapped flag and turn off valid flag
   pte_t* pte = walk(p->pagetable, v_addr, 0);
-  *pte = (*pte | PTE_PG) & !PTE_V; 
+  *pte = *pte & !PTE_V; // Turn off valid flag
   
-  
+  if(to_swapFile) {
+    char* pa = (char*)PTE2PA(*pte);
+    if(writeToSwapFile(p, pa, pg_indx*PGSIZE, PGSIZE) < 0)
+      panic("swap_out: writeToSwapFile failed");
+    uvmunmap(p->pagetable, v_addr, 1, 1); // Unmap the page and free the memory
+    *pte = *pte | PTE_PG; // Turn on swapped flag
+  }
+
   // Move a page_node* from memory to swapFile,
   // copy the page to swapFile,
   // free the memory,
@@ -746,6 +734,7 @@ int
 swap_in(uint64 v_addr, int from_swapFile)
 {  
   struct proc* p = myproc();
+
   uint64 mem_pgs[] = p->pg_m.memory_pgs;
   int found = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
@@ -763,12 +752,31 @@ swap_in(uint64 v_addr, int from_swapFile)
 
   p->pg_m.num_of_pgs_in_memory += 1;
 
-  // Turn on swapped flag and turn off valid flag
   pte_t* pte = walk(p->pagetable, v_addr, 0);
-  *pte = (*pte & !PTE_PG) | PTE_V; // turn off swapped flag and turn on valid flag
+  *pte = *pte | PTE_V; // Turn on valid flag
 
   if(from_swapFile) {
-    //TODO: allocate memory for this page and copy it from swapFile
+    int sf_indx;
+    uint64 sf_pgs[] = p->pg_m.swapFile_pgs;
+    int found = 0;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(sf_pgs[i] == v_addr) {
+        found = 1;
+        sf_pgs[i] = 0;
+        sf_indx = i;
+        printf("added page at v_addr %x to memory_pgs of process %d\n", v_addr, p->pid);
+        break;
+      }
+    }
+
+    if(!found) {
+      panic("swap_in: page not found in swapFile");
+    }
+
+    char* pa = (char*)PTE2PA(*pte);
+    if(readFromSwapFile(p, ,) < 0)
+      panic("swap_out: writeToSwapFile failed");
+    *pte = *pte & !PTE_PG; // Turn off swapped flag
   }
 }
 
