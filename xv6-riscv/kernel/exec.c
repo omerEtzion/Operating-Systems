@@ -64,6 +64,9 @@ exec(char *path, char **argv)
   p = myproc();
   uint64 oldsz = p->sz;
 
+  // Save old paging metadata
+  uint64 old_sf_pgs[] = p->pg_m.swapFile_pgs;
+
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -119,8 +122,17 @@ exec(char *path, char **argv)
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:
-  if(pagetable)
+  if(pagetable) {
+    uint64 new_sf_pgs[] = p->pg_m.swapFile_pgs;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(old_sf_pgs[i] != new_sf_pgs[i]) {
+        swap_in(old_sf_pgs[i], 1);
+      }
+    }
+
     proc_freepagetable(pagetable, sz);
+  }
+
   if(ip){
     iunlockput(ip);
     end_op();

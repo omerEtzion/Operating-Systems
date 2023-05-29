@@ -678,7 +678,7 @@ procdump(void)
   }
 }
 
-int
+void
 choose_and_swap(uint64 v_addr_to_swap_in)
 {
   struct proc* p = myproc();
@@ -688,12 +688,39 @@ choose_and_swap(uint64 v_addr_to_swap_in)
 
   swap_out(v_addr_to_swap_out, 1);
 
-  uint64 v_addr_of_new
+  uint64 sz;
+  if(sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE) == 0)
+    panic("choose_and_swap: uvmalloc failed");
+  uint64 new_pg_v_addr = sz - PGSIZE;
+  uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
+  
+  int permissions = PTE_FLAGS(*walk(p->pagetable, v_addr_to_swap_in, 0));
+  permissions = (permissions & !PTE_PG) | PTE_V; // Turn off swapped flag and on valid flag
 
+
+  uvmunmap(p->pagetable, new_pg_v_addr, 1, 0); // unmmap new p_addr from new v_addr
+  mappages(p->pagetable, v_addr_to_swap_in, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
+
+  int index_in_sf;
+  uint64 pgs_in_sf[] = p->pg_m.swapFile_pgs;
+  int found  = 0;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if(pgs_in_sf[i] == v_addr_to_swap_in) {
+      index_in_sf = i;
+      found = 1;
+      break;
+    }
+  }
+
+  if(!found) {
+    panic("choose_and_swap: v_addr_to_swap_in not in swapFile");
+  }
+
+  readFromSwapFile(p, (char*)new_pg_p_addr, index_in_sf*PGSIZE, PGSIZE);
 
 }
 
-int
+void
 swap_out(uint64 v_addr, int to_swapFile)
 {
   struct proc* p = myproc();
@@ -756,35 +783,44 @@ swap_out(uint64 v_addr, int to_swapFile)
   // if to_swapFile == 1, select a page based oin policy, else remove v_addr
 }
 
-int
+void
 swap_in(uint64 v_addr, int from_swapFile)
 {  
   struct proc* p = myproc();
 
   pte_t* pte = walk(p->pagetable, v_addr, 0);
 
-  // if(from_swapFile) {
-  //   int sf_indx;
-  //   uint64 sf_pgs[] = p->pg_m.swapFile_pgs;
-  //   int found = 0;
-  //   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-  //     if(sf_pgs[i] == v_addr) {
-  //       found = 1;
-  //       sf_pgs[i] = 0;
-  //       sf_indx = i;
-  //       break;
-  //     }
-  //   }
+  if(from_swapFile) {
+    uint64 sz;
+    if(sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE) == 0)
+      panic("choose_and_swap: uvmalloc failed");
+    uint64 new_pg_v_addr = sz - PGSIZE;
+    uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
+    
+    int permissions = PTE_FLAGS(*walk(p->pagetable, v_addr, 0));
+    permissions = (permissions & !PTE_PG) | PTE_V; // Turn off swapped flag and on valid flag
 
-  //   if(!found) {
-  //     panic("swap_in: page not found in swapFile");
-  //   }
 
-  //   char* pa = (char*)PTE2PA(*pte);
-  //   if(readFromSwapFile(p, ,) < 0)
-  //     panic("swap_out: writeToSwapFile failed");
-  //   *pte = *pte & !PTE_PG; // Turn off swapped flag
-  // }
+    uvmunmap(p->pagetable, new_pg_v_addr, 1, 0); // unmmap new p_addr from new v_addr
+    mappages(p->pagetable, v_addr, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
+
+    int index_in_sf;
+    uint64 pgs_in_sf[] = p->pg_m.swapFile_pgs;
+    int found  = 0;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(pgs_in_sf[i] == v_addr) {
+        index_in_sf = i;
+        found = 1;
+        break;
+      }
+    }
+
+    if(!found) {
+      panic("swap_in: v_addr_to_swap_in not in swapFile");
+    }
+
+    readFromSwapFile(p, (char*)new_pg_p_addr, index_in_sf*PGSIZE, PGSIZE);
+  }
 
   *pte = *pte | PTE_V;    // Turn on valid flag
   *pte = *pte & !PTE_PG;  // Turn off swapped flag
