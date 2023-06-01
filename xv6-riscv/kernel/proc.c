@@ -701,35 +701,39 @@ choose_and_swap(uint64 v_addr_to_swap_in)
 
   swap_out(v_addr_to_swap_out, 1);
 
-  uint64 sz;
-  if((sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE)) == 0)
-    panic("choose_and_swap: uvmalloc failed");
-  uint64 new_pg_v_addr = sz - PGSIZE;
-  uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
+  swap_in(v_addr_to_swap_in, 1);
   
-  int permissions = PTE_FLAGS(*walk(p->pagetable, v_addr_to_swap_in, 0));
-  permissions = (permissions & !PTE_PG) | PTE_V; // Turn off swapped flag and on valid flag
+  
+  
+  // uint64 sz;
+  // if((sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE)) == 0)
+  //   panic("choose_and_swap: uvmalloc failed");
+  // uint64 new_pg_v_addr = sz - PGSIZE;
+  // uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
+  
+  // int permissions = PTE_FLAGS(*walk(p->pagetable, v_addr_to_swap_in, 0));
+  // permissions = (permissions & !PTE_PG) | PTE_V; // Turn off swapped flag and on valid flag
 
 
-  uvmunmap(p->pagetable, new_pg_v_addr, 1, 0); // unmmap new p_addr from new v_addr
-  mappages(p->pagetable, v_addr_to_swap_in, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
+  // uvmunmap(p->pagetable, new_pg_v_addr, 1, 0); // unmmap new p_addr from new v_addr
+  // mappages(p->pagetable, v_addr_to_swap_in, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
 
-  int index_in_sf;
-  struct page* pgs_in_sf = p->pg_m.swapFile_pgs;
-  int found  = 0;
-  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-    if(pgs_in_sf[i].vaddr == v_addr_to_swap_in) {
-      index_in_sf = i;
-      found = 1;
-      break;
-    }
-  }
+  // int index_in_sf;
+  // struct page* pgs_in_sf = p->pg_m.swapFile_pgs;
+  // int found  = 0;
+  // for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+  //   if(pgs_in_sf[i].vaddr == v_addr_to_swap_in) {
+  //     index_in_sf = i;
+  //     found = 1;
+  //     break;
+  //   }
+  // }
 
-  if(!found) {
-    panic("choose_and_swap: v_addr_to_swap_in not in swapFile");
-  }
+  // if(!found) {
+  //   panic("choose_and_swap: v_addr_to_swap_in not in swapFile");
+  // }
 
-  readFromSwapFile(p, (char*)new_pg_p_addr, index_in_sf*PGSIZE, PGSIZE);
+  // readFromSwapFile(p, (char*)new_pg_p_addr, index_in_sf*PGSIZE, PGSIZE);
 
 }
 
@@ -941,4 +945,38 @@ choose_pg_to_swap()
   return p->pg_m.memory_pgs[4].vaddr;
 }
 
+uint64
+lapa()
+{
+  uint64 min_lapa_counter = 0xFFFFFFFF; // max num of ones in an int
+  uint64 chosen_vaddr;
+
+  struct page* mem_pgs = myproc()->pg_m.memory_pgs;
+  for (int i = 0; i < MAX_PSYC_PAGES; i++) {
+    struct page pg = mem_pgs[i];
+    if(pg.vaddr != -1) {
+      int curr_num_of_ones = num_of_ones(pg.lapa_counter);
+      int min_num_of_ones = num_of_ones(min_lapa_counter);
+      if( curr_num_of_ones < min_num_of_ones || (curr_num_of_ones == min_num_of_ones && pg.lapa_counter <= min_lapa_counter)) {
+        min_lapa_counter = pg.lapa_counter;
+        chosen_vaddr = pg.vaddr;
+      }
+    }
+  }
+
+  return chosen_vaddr;
+}
+
+// Brian Kernighan's algorithm for counting the number of ones in a binary number
+int
+num_of_ones(int num)
+{
+  int counter = 0;
+  while(num != 0) {
+    num  = num & (num-1);
+    counter += 1;
+  }
+
+  return counter;
+}
 
