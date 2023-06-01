@@ -941,4 +941,7 @@ choose_pg_to_swap()
   return p->pg_m.memory_pgs[4].vaddr;
 }
 
-
+uint64
+nfua(){
+  
+}

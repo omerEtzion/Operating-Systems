@@ -93,8 +93,8 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 struct page {
   uint64 vaddr;
-  int nfua_counter;
-  int lapa_counter;
+  uint64 nfua_counter;
+  uint64 lapa_counter;
   struct page* next;
 };
 

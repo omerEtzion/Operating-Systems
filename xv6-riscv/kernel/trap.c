@@ -98,8 +98,25 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(p->pg_m.memory_pgs[i]->v_addr != -1){
+        // sift right by one bit
+        p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter >> 1;
+        p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter >> 1;
+
+        // add 1 to msb
+        pte_t* pte = walk(p->pagetable, p->pg_m.memory_pgs[i]->v_addr, 0);
+        if(*pte & PTE_A){
+          int long_bits = sizeof(nfua_counter) * 8;
+          p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter | (1L << (long_bits - 1));
+          p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter | (1L << (long_bits - 1));
+        }
+      }
+    }
+
     yield();
+  }
 
   usertrapret();
 }
@@ -171,8 +188,26 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING){
+      struct proc *p = myproc();
+      for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+        if(p->pg_m.memory_pgs[i]->v_addr != -1){
+          // sift right by one bit
+          p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter >> 1;
+          p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter >> 1;
+
+          // add 1 to msb
+          pte_t* pte = walk(p->pagetable, p->pg_m.memory_pgs[i]->v_addr, 0);
+          if(*pte & PTE_A){
+            int long_bits = sizeof(nfua_counter) * 8;
+            p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter | (1L << (long_bits - 1));
+            p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter | (1L << (long_bits - 1));
+          }
+        }
+    }
+
     yield();
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
