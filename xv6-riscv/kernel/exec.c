@@ -20,6 +20,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
+  uint64* old_sf_pgs = p->pg_m.swapFile_pgs; // Save old paging metadata
 
   begin_op();
 
@@ -63,9 +64,6 @@ exec(char *path, char **argv)
 
   p = myproc();
   uint64 oldsz = p->sz;
-
-  // Save old paging metadata
-  uint64 old_sf_pgs[] = p->pg_m.swapFile_pgs;
 
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
@@ -123,7 +121,7 @@ exec(char *path, char **argv)
 
  bad:
   if(pagetable) {
-    uint64 new_sf_pgs[] = p->pg_m.swapFile_pgs;
+    uint64* new_sf_pgs = p->pg_m.swapFile_pgs;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
       if(old_sf_pgs[i] != new_sf_pgs[i]) {
         swap_in(old_sf_pgs[i], 1);

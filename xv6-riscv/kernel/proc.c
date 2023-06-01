@@ -138,11 +138,13 @@ found:
     return 0;
   }
 
-  // Create the process' swapFile
-  if(createSwapFile(p) == -1){
-    freeproc(p);
-    release(&p->lock);
-    return 0;
+  if(p->pid >= 2) {
+    // Create the process' swapFile
+    if(createSwapFile(p) == -1){
+      freeproc(p);
+      release(&p->lock);
+      return 0;
+    }
   }
 
   // Set up new context to start executing at forkret,
@@ -245,6 +247,7 @@ userinit(void)
 {
   struct proc *p;
 
+  printf("1\n");
   p = allocproc();
   initproc = p;
   
@@ -274,7 +277,6 @@ growproc(int n)
   struct proc *p = myproc();
 
   sz = p->sz;
-  uint prev_sz_round_up = PGROUNDUP(p->sz);
   if(n > 0){
     if((sz = uvmalloc_wrapper(p->pagetable, sz, sz + n)) == 0) {
       return -1;
@@ -681,7 +683,12 @@ procdump(void)
 void
 choose_and_swap(uint64 v_addr_to_swap_in)
 {
+  
   struct proc* p = myproc();
+
+  if(p->pid < 2) {
+    return;
+  }
   
   uint64 v_addr_to_swap_out = choose_pg_to_swap();
   // pte_t* pte = walk(p->pagetable, to_swap_out, 0);
@@ -689,7 +696,7 @@ choose_and_swap(uint64 v_addr_to_swap_in)
   swap_out(v_addr_to_swap_out, 1);
 
   uint64 sz;
-  if(sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE) == 0)
+  if((sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE)) == 0)
     panic("choose_and_swap: uvmalloc failed");
   uint64 new_pg_v_addr = sz - PGSIZE;
   uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
@@ -702,7 +709,7 @@ choose_and_swap(uint64 v_addr_to_swap_in)
   mappages(p->pagetable, v_addr_to_swap_in, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
 
   int index_in_sf;
-  uint64 pgs_in_sf[] = p->pg_m.swapFile_pgs;
+  uint64* pgs_in_sf = p->pg_m.swapFile_pgs;
   int found  = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
     if(pgs_in_sf[i] == v_addr_to_swap_in) {
@@ -725,11 +732,15 @@ swap_out(uint64 v_addr, int to_swapFile)
 {
   struct proc* p = myproc();
 
+  if(p->pid < 2) {
+    return;
+  }
+
   pte_t* pte = walk(p->pagetable, v_addr, 0);
   
   if(to_swapFile) {
     int pg_indx;
-    uint64 sf_pgs[] = p->pg_m.swapFile_pgs;
+    uint64* sf_pgs = p->pg_m.swapFile_pgs;
     int found = 0;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
       if(sf_pgs[i] == 0) {
@@ -752,7 +763,7 @@ swap_out(uint64 v_addr, int to_swapFile)
     *pte = *pte | PTE_PG; // Turn on swapped flag
   }
   
-  uint64 mem_pgs[] = p->pg_m.memory_pgs;
+  uint64* mem_pgs = p->pg_m.memory_pgs;
   int found = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
     if(mem_pgs[i] == v_addr) {
@@ -788,11 +799,15 @@ swap_in(uint64 v_addr, int from_swapFile)
 {  
   struct proc* p = myproc();
 
+  if(p->pid < 2) {
+    return;
+  }
+
   pte_t* pte = walk(p->pagetable, v_addr, 0);
 
   if(from_swapFile) {
     uint64 sz;
-    if(sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE) == 0)
+    if((sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE)) == 0)
       panic("choose_and_swap: uvmalloc failed");
     uint64 new_pg_v_addr = sz - PGSIZE;
     uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
@@ -805,7 +820,7 @@ swap_in(uint64 v_addr, int from_swapFile)
     mappages(p->pagetable, v_addr, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
 
     int index_in_sf;
-    uint64 pgs_in_sf[] = p->pg_m.swapFile_pgs;
+    uint64* pgs_in_sf = p->pg_m.swapFile_pgs;
     int found  = 0;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
       if(pgs_in_sf[i] == v_addr) {
@@ -825,14 +840,14 @@ swap_in(uint64 v_addr, int from_swapFile)
   *pte = *pte | PTE_V;    // Turn on valid flag
   *pte = *pte & !PTE_PG;  // Turn off swapped flag
 
-  uint64 mem_pgs[] = p->pg_m.memory_pgs;
+  uint64* mem_pgs = p->pg_m.memory_pgs;
   int found = 0;
-  int index_in_mem_pgs;
+  // int index_in_mem_pgs;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
     if(mem_pgs[i] == 0) {
       found = 1;
       mem_pgs[i] = v_addr;
-      index_in_mem_pgs = i;
+      // index_in_mem_pgs = i;
       printf("added page at v_addr %x to memory_pgs of process %d\n", v_addr, p->pid);
       break;
     }
@@ -844,15 +859,19 @@ swap_in(uint64 v_addr, int from_swapFile)
 
   p->pg_m.num_of_pgs_in_memory += 1;
 
-  return index_in_mem_pgs;
+  // return index_in_mem_pgs;
 }
 
 uint64
 uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
-  char *mem;
+  // char *mem;
   uint64 a;
   struct proc* p = myproc();
+
+  if(p->pid < 2) {
+    return uvmalloc(pagetable, oldsz, newsz);
+  }
 
   if(newsz < oldsz)
     return oldsz;
@@ -887,6 +906,11 @@ uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 uint64
 uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {  
+  struct proc* p = myproc();
+  if(p->pid < 2) {
+    return uvmdealloc(pagetable, oldsz, newsz);
+  }
+  
   uint64 output = oldsz;
 
   for(uint64 a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE){
@@ -904,6 +928,4 @@ choose_pg_to_swap()
   return myproc()->pg_m.memory_pgs[4];
 }
 
-// TODO: we were wrong. we cant unmap a page that was swapped to the swapFile. The process needs
-// to think that its in the same v_addr. we need to remap the old v_addr to the free p_addr in ram (
-// of the page we just swapped out of ram).
+

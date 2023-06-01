@@ -91,12 +91,20 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 //   struct pg_node* prev;
 // };
 
+struct page {
+  uint64 vaddr;
+  int nfua_counter;
+  int lapa_counter;
+  struct page* next;
+};
+
 // Data structure to keep track of a process' pages
 struct pg_metadata {
   int num_of_pgs_in_memory;
   int num_of_pgs_in_swapFile;
-  uint64 swapFile_pgs[MAX_TOTAL_PAGES - MAX_PSYC_PAGES]; // array of virtual addresses of pages in swapFile
-  uint64 memory_pgs[MAX_PSYC_PAGES]; // array of virtual addresses of pages in memory
+  struct page swapFile_pgs[MAX_TOTAL_PAGES - MAX_PSYC_PAGES]; // array of virtual addresses of pages in swapFile
+  struct page memory_pgs[MAX_PSYC_PAGES]; // array of virtual addresses of pages in memory
+  struct page* fifosc_list;
 };
 
 // Per-process state

@@ -4,6 +4,7 @@
 #include "elf.h"
 #include "riscv.h"
 #include "defs.h"
+#include "spinlock.h"
 #include "proc.h"
 #include "fs.h"
 
@@ -223,7 +224,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
   char *mem;
   uint64 a;
-  struct proc* p = myproc();
+  // struct proc* p = myproc();
 
   if(newsz < oldsz)
     return oldsz;
@@ -274,13 +275,12 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 uint64
 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {
-  struct proc* p = myproc();
+  // struct proc* p = myproc();
   
   if(newsz >= oldsz)
     return oldsz;
 
   if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)) {
-    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     // for(uint64 a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE){
     //   // Update p->pg_metadata
     //   uvmunmap(pagetable, a, 1, 1);

@@ -116,7 +116,7 @@ void            swap_out(uint64 v_addr, int to_swapFile);
 void            swap_in(uint64 v_addr, int from_swapFile);
 uint64          uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
 uint64          uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
-
+uint64          choose_pg_to_swap(void);
 // swtch.S
 void            swtch(struct context*, struct context*);
 
