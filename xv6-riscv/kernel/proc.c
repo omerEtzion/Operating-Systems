@@ -804,15 +804,13 @@ swap_out(uint64 v_addr, int to_swapFile)
 }
 
 void
-swap_in(struct page* to_swap_in, int from_swapFile)
+swap_in(uint64 v_addr, int from_swapFile)
 {  
   struct proc* p = myproc();
 
   if(p->pid < 2) {
     return;
   }
-
-  uint64 v_addr = to_swap_in->vaddr;
 
   pte_t* pte = walk(p->pagetable, v_addr, 0);
 
