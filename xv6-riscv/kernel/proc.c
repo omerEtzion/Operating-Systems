@@ -782,6 +782,22 @@ swap_out(uint64 v_addr, int to_swapFile)
       mem_pgs[i].nfua_counter = 0;
       mem_pgs[i].lapa_counter = 0xFFFFFFFF;
 
+      // remove pg from the circular list
+      mem_pgs[i].next->prev = mem_pgs[i].prev;
+      mem_pgs[i].prev->next = mem_pgs[i].next;
+
+      // if the pg was the first_added_pg, update it to point to the next added pg
+      if(&mem_pgs[i] == p->pg_m.first_added_pg) {
+        if(mem_pgs[i].next) {
+          p->pg_m.first_added_pg = mem_pgs[i].next;
+        } else {
+          p->pg_m.first_added_pg = 0;
+        } 
+      }
+      
+      mem_pgs[i].next = 0;
+      mem_pgs[i].prev = 0;
+
       printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
       break;
     }
@@ -863,6 +879,19 @@ swap_in(uint64 v_addr, int from_swapFile)
       mem_pgs[i].vaddr = v_addr;
       mem_pgs[i].nfua_counter = 0;
       mem_pgs[i].lapa_counter = 0xFFFFFFFF;
+
+      // add the page behind the first_added_pg in the circular list
+      struct page* first_pg = p->pg_m.first_added_pg;
+      if(first_pg == 0) {
+        // if it's the first page added in this process
+        p->pg_m.first_added_pg = &mem_pgs[i];
+      } else {
+        first_pg->prev->next = &mem_pgs[i];
+        mem_pgs[i].prev = first_pg->prev;
+        first_pg->prev = &mem_pgs[i];
+        mem_pgs[i].next = first_pg;
+      }
+
       // index_in_mem_pgs = i;
       printf("added page at v_addr %x to memory_pgs of process %d\n", v_addr, p->pid);
       break;
@@ -980,3 +1009,26 @@ num_of_ones(int num)
   return counter;
 }
 
+
+uint64
+sc_fifo()
+{
+  struct proc* p = myproc();
+  struct page* iter = p->pg_m.first_added_pg;
+  for(;;) {
+    if(!iter->scf_reference_bit) {
+      // // remove page from circular list
+      // iter->prev->next = iter->next; 
+      // iter->next->prev = iter->prev;
+      // // if it was the first_added_pg, update it to point to the next added page
+      // if(iter == p->pg_m.first_added_pg) {
+      //   p->pg_m.first_added_pg = iter->next;
+      // }
+      return iter->vaddr;
+
+    } else {
+      iter->scf_reference_bit = 0;
+      iter = iter->next;
+    }
+  }
+}
