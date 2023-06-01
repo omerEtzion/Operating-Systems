@@ -67,10 +67,10 @@ usertrap(void)
     syscall();
   } else if(r_scause() == 13 || r_scause() == 15) {
     uint64 pa = PGROUNDDOWN(r_stval());
-    uint64* sf_pgs = p->pg_m.swapFile_pgs;
+    struct page* sf_pgs = p->pg_m.swapFile_pgs;
     int found = 0;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-      uint64 v_addr = sf_pgs[i];
+      uint64 v_addr = sf_pgs[i].vaddr;
       uint64 pg_pa = walkaddr(p->pagetable, v_addr);
       if(pa >= pg_pa && pa < pg_pa + PGSIZE) {
         found = 1;

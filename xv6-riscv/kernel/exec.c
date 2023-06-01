@@ -20,7 +20,7 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
-  uint64* old_sf_pgs = p->pg_m.swapFile_pgs; // Save old paging metadata
+  struct page* old_sf_pgs = p->pg_m.swapFile_pgs; // Save old paging metadata
 
   begin_op();
 
@@ -121,10 +121,10 @@ exec(char *path, char **argv)
 
  bad:
   if(pagetable) {
-    uint64* new_sf_pgs = p->pg_m.swapFile_pgs;
+    struct page* new_sf_pgs = p->pg_m.swapFile_pgs;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-      if(old_sf_pgs[i] != new_sf_pgs[i]) {
-        swap_in(old_sf_pgs[i], 1);
+      if(old_sf_pgs[i].vaddr != new_sf_pgs[i].vaddr) {
+        swap_in(&old_sf_pgs[i], 1);
       }
     }
 
