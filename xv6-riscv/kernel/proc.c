@@ -122,6 +122,12 @@ found:
 
   // Set paging metadata to 0
   memset(&p->pg_m, 0, sizeof(p->pg_m));
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    p->pg_m.memory_pgs[i].lapa_counter = 0xFFFFFFFF;
+    p->pg_m.memory_pgs[i].vaddr = -1;
+    p->pg_m.swapFile_pgs[i].lapa_counter = 0xFFFFFFFF;
+    p->pg_m.swapFile_pgs[i].vaddr = -1;
+  }
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -709,10 +715,10 @@ choose_and_swap(uint64 v_addr_to_swap_in)
   mappages(p->pagetable, v_addr_to_swap_in, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
 
   int index_in_sf;
-  uint64* pgs_in_sf = p->pg_m.swapFile_pgs;
+  struct page* pgs_in_sf = p->pg_m.swapFile_pgs;
   int found  = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-    if(pgs_in_sf[i] == v_addr_to_swap_in) {
+    if(pgs_in_sf[i].vaddr == v_addr_to_swap_in) {
       index_in_sf = i;
       found = 1;
       break;
@@ -740,12 +746,12 @@ swap_out(uint64 v_addr, int to_swapFile)
   
   if(to_swapFile) {
     int pg_indx;
-    uint64* sf_pgs = p->pg_m.swapFile_pgs;
+    struct page* sf_pgs = p->pg_m.swapFile_pgs;
     int found = 0;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-      if(sf_pgs[i] == 0) {
+      if(sf_pgs[i].vaddr == -1) {
         found = 1;
-        sf_pgs[i] = v_addr;
+        sf_pgs[i].vaddr = v_addr;
         pg_indx = i;
         printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
         break;
@@ -763,12 +769,15 @@ swap_out(uint64 v_addr, int to_swapFile)
     *pte = *pte | PTE_PG; // Turn on swapped flag
   }
   
-  uint64* mem_pgs = p->pg_m.memory_pgs;
+  struct page* mem_pgs = p->pg_m.memory_pgs;
   int found = 0;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-    if(mem_pgs[i] == v_addr) {
+    if(mem_pgs[i].vaddr == v_addr) {
       found = 1;
-      mem_pgs[i] = 0;
+      mem_pgs[i].vaddr = -1;
+      mem_pgs[i].nfua_counter = 0;
+      mem_pgs[i].lapa_counter = 0xFFFFFFFF;
+
       printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
       break;
     }
@@ -795,13 +804,15 @@ swap_out(uint64 v_addr, int to_swapFile)
 }
 
 void
-swap_in(uint64 v_addr, int from_swapFile)
+swap_in(struct page* to_swap_in, int from_swapFile)
 {  
   struct proc* p = myproc();
 
   if(p->pid < 2) {
     return;
   }
+
+  uint64 v_addr = to_swap_in->vaddr;
 
   pte_t* pte = walk(p->pagetable, v_addr, 0);
 
@@ -820,11 +831,12 @@ swap_in(uint64 v_addr, int from_swapFile)
     mappages(p->pagetable, v_addr, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
 
     int index_in_sf;
-    uint64* pgs_in_sf = p->pg_m.swapFile_pgs;
+    struct page* pgs_in_sf = p->pg_m.swapFile_pgs;
     int found  = 0;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-      if(pgs_in_sf[i] == v_addr) {
+      if(pgs_in_sf[i].vaddr == v_addr) {
         index_in_sf = i;
+        pgs_in_sf[i].vaddr = -1;
         found = 1;
         break;
       }
@@ -840,13 +852,15 @@ swap_in(uint64 v_addr, int from_swapFile)
   *pte = *pte | PTE_V;    // Turn on valid flag
   *pte = *pte & !PTE_PG;  // Turn off swapped flag
 
-  uint64* mem_pgs = p->pg_m.memory_pgs;
+  struct page* mem_pgs = p->pg_m.memory_pgs;
   int found = 0;
   // int index_in_mem_pgs;
   for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-    if(mem_pgs[i] == 0) {
+    if(mem_pgs[i].vaddr == -1) {
       found = 1;
-      mem_pgs[i] = v_addr;
+      mem_pgs[i].vaddr = v_addr;
+      mem_pgs[i].nfua_counter = 0;
+      mem_pgs[i].lapa_counter = 0xFFFFFFFF;
       // index_in_mem_pgs = i;
       printf("added page at v_addr %x to memory_pgs of process %d\n", v_addr, p->pid);
       break;
@@ -925,7 +939,8 @@ uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 uint64 
 choose_pg_to_swap()
 {
-  return myproc()->pg_m.memory_pgs[4];
+  struct proc* p = myproc();
+  return p->pg_m.memory_pgs[4].vaddr;
 }
 
 
