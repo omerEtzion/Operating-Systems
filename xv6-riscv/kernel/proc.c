@@ -1030,14 +1030,15 @@ num_of_ones(int num)
   return counter;
 }
 
-
 uint64
 sc_fifo()
 {
   struct proc* p = myproc();
   struct page* iter = p->pg_m.first_added_pg;
   for(;;) {
-    if(!iter->scf_reference_bit) {
+    pte_t* pte = walk(p->pagetable, iter->vaddr, 0);
+    int reference_bit = *pte & PTE_A;
+    if(reference_bit == 0) {
       // // remove page from circular list
       // iter->prev->next = iter->next; 
       // iter->next->prev = iter->prev;
@@ -1048,7 +1049,7 @@ sc_fifo()
       return iter->vaddr;
 
     } else {
-      iter->scf_reference_bit = 0;
+      *pte = *pte & !PTE_A; // zero the reference bit
       iter = iter->next;
     }
   }
