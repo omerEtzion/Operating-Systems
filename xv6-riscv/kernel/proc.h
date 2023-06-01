@@ -82,6 +82,35 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// // Double linked list of ptes with their indexes in the swapFile.
+// // We get to the page in the swapFile by accessing it in offset index_in_swapFile*PG_SIZE
+// struct pg_node {
+//   int index_in_swapFile;
+//   uint64 pg_virtual_addr;
+//   struct pg_node* next;
+//   struct pg_node* prev;
+// };
+
+struct page {
+  uint64 vaddr;
+  uint64 nfua_counter;
+  uint64 lapa_counter;
+  int scf_reference_bit;
+  struct page* next;
+  struct page* prev;
+};
+
+// Data structure to keep track of a process' pages
+struct pg_metadata {
+  int num_of_pgs_in_memory;
+  int num_of_pgs_in_swapFile;
+  struct page swapFile_pgs[MAX_TOTAL_PAGES - MAX_PSYC_PAGES]; // array of virtual addresses of pages in swapFile
+  struct page memory_pgs[MAX_PSYC_PAGES]; // array of virtual addresses of pages in memory
+  struct page* first_added_pg;
+  // struct page* scfifo_list_hd;
+  // struct page* scfifo_list_tl;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -105,4 +134,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  struct file *swapFile;
+  struct pg_metadata pg_m;
 };

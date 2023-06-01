@@ -65,6 +65,27 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if(r_scause() == 13 || r_scause() == 15) {
+    uint64 pa = PGROUNDDOWN(r_stval());
+    struct page* sf_pgs = p->pg_m.swapFile_pgs;
+    int found = 0;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      uint64 v_addr = sf_pgs[i].vaddr;
+      uint64 pg_pa = walkaddr(p->pagetable, v_addr);
+      if(pa >= pg_pa && pa < pg_pa + PGSIZE) {
+        found = 1;
+        choose_and_swap(v_addr);
+        break;
+      }
+    }
+    if(!found) {
+      // If not found, it's a regular segfault
+      printf("page not found in swapFile\n");
+      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      p->killed = 1;
+    }
+
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -77,8 +98,27 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      struct page* pg = &p->pg_m.memory_pgs[i];
+      if(pg->vaddr != -1){
+        // sift right by one bit
+        pg->nfua_counter = pg->nfua_counter >> 1;
+        pg->lapa_counter = pg->lapa_counter >> 1;
+
+        // add 1 to msb
+        pte_t* pte = walk(p->pagetable, pg->vaddr, 0);
+        if(*pte & PTE_A){
+          int long_bits = sizeof(pg->nfua_counter) * 8;
+          pg->nfua_counter = pg->nfua_counter | (1L << (long_bits - 1));
+          pg->lapa_counter = pg->lapa_counter | (1L << (long_bits - 1));
+          *pte = *pte & !PTE_A; // zero the bit
+        }
+      }
+    }
+
     yield();
+  }
 
   usertrapret();
 }
@@ -150,8 +190,27 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING){
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      struct page* pg = &myproc()->pg_m.memory_pgs[i];
+      if(pg->vaddr != -1){
+        // sift right by one bit
+        pg->nfua_counter = pg->nfua_counter >> 1;
+        pg->lapa_counter = pg->lapa_counter >> 1;
+
+        // add 1 to msb
+        pte_t* pte = walk(myproc()->pagetable, pg->vaddr, 0);
+        if(*pte & PTE_A){
+          int long_bits = sizeof(pg->nfua_counter) * 8;
+          pg->nfua_counter = pg->nfua_counter | (1L << (long_bits - 1));
+          pg->lapa_counter = pg->lapa_counter | (1L << (long_bits - 1));
+          *pte = *pte & !PTE_A; // zero the bit
+        }
+      }
+    }
+
     yield();
+  }
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.

@@ -120,6 +120,15 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  // Set paging metadata to 0
+  memset(&p->pg_m, 0, sizeof(p->pg_m));
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    p->pg_m.memory_pgs[i].lapa_counter = 0xFFFFFFFF;
+    p->pg_m.memory_pgs[i].vaddr = -1;
+    p->pg_m.swapFile_pgs[i].lapa_counter = 0xFFFFFFFF;
+    p->pg_m.swapFile_pgs[i].vaddr = -1;
+  }
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -133,6 +142,15 @@ found:
     freeproc(p);
     release(&p->lock);
     return 0;
+  }
+
+  if(p->pid >= 2) {
+    // Create the process' swapFile
+    if(createSwapFile(p) == -1){
+      freeproc(p);
+      release(&p->lock);
+      return 0;
+    }
   }
 
   // Set up new context to start executing at forkret,
@@ -156,6 +174,12 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+  // Clear paging metadata
+  memset(&p->pg_m, 0, sizeof(p->pg_m));
+  // Remove the process' swapFile
+  if(p->swapFile)
+    removeSwapFile(p);
+  p->swapFile = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -187,6 +211,7 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+  p->pg_m.num_of_pgs_in_memory += 1; // Don't add the page to the linked list because it's not swappable
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
@@ -195,6 +220,7 @@ proc_pagetable(struct proc *p)
     uvmfree(pagetable, 0);
     return 0;
   }
+  p->pg_m.num_of_pgs_in_memory += 1; // Don't add the page to the linked list because it's not swappable
 
   return pagetable;
 }
@@ -227,6 +253,7 @@ userinit(void)
 {
   struct proc *p;
 
+  printf("1\n");
   p = allocproc();
   initproc = p;
   
@@ -257,11 +284,11 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
+    if((sz = uvmalloc_wrapper(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
   } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    sz = uvmdealloc_wrapper(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
   return 0;
@@ -287,6 +314,10 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+
+  // copy the paging metadata 
+  np->pg_m = p->pg_m; 
+
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -512,7 +543,7 @@ forkret(void)
   // Still holding p->lock from scheduler.
   release(&myproc()->lock);
 
-  if (first) {
+  if(first) {
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
@@ -652,5 +683,374 @@ procdump(void)
       state = "???";
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
+  }
+}
+
+void
+choose_and_swap(uint64 v_addr_to_swap_in)
+{
+  
+  struct proc* p = myproc();
+
+  if(p->pid < 2) {
+    return;
+  }
+  
+  uint64 v_addr_to_swap_out = choose_pg_to_swap();
+  // pte_t* pte = walk(p->pagetable, to_swap_out, 0);
+
+  swap_out(v_addr_to_swap_out, 1);
+
+  swap_in(v_addr_to_swap_in, 1);
+  
+  
+  
+  // uint64 sz;
+  // if((sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE)) == 0)
+  //   panic("choose_and_swap: uvmalloc failed");
+  // uint64 new_pg_v_addr = sz - PGSIZE;
+  // uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
+  
+  // int permissions = PTE_FLAGS(*walk(p->pagetable, v_addr_to_swap_in, 0));
+  // permissions = (permissions & !PTE_PG) | PTE_V; // Turn off swapped flag and on valid flag
+
+
+  // uvmunmap(p->pagetable, new_pg_v_addr, 1, 0); // unmmap new p_addr from new v_addr
+  // mappages(p->pagetable, v_addr_to_swap_in, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
+
+  // int index_in_sf;
+  // struct page* pgs_in_sf = p->pg_m.swapFile_pgs;
+  // int found  = 0;
+  // for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+  //   if(pgs_in_sf[i].vaddr == v_addr_to_swap_in) {
+  //     index_in_sf = i;
+  //     found = 1;
+  //     break;
+  //   }
+  // }
+
+  // if(!found) {
+  //   panic("choose_and_swap: v_addr_to_swap_in not in swapFile");
+  // }
+
+  // readFromSwapFile(p, (char*)new_pg_p_addr, index_in_sf*PGSIZE, PGSIZE);
+
+}
+
+void
+swap_out(uint64 v_addr, int to_swapFile)
+{
+  struct proc* p = myproc();
+
+  if(p->pid < 2) {
+    return;
+  }
+
+  pte_t* pte = walk(p->pagetable, v_addr, 0);
+  
+  if(to_swapFile) {
+    int pg_indx;
+    struct page* sf_pgs = p->pg_m.swapFile_pgs;
+    int found = 0;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(sf_pgs[i].vaddr == -1) {
+        found = 1;
+        sf_pgs[i].vaddr = v_addr;
+        pg_indx = i;
+        printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
+        break;
+      }
+    }
+
+    if(!found) {
+      panic("swap_out: no space in swapFile");
+    }
+    
+    char* pa = (char*)PTE2PA(*pte);
+    if(writeToSwapFile(p, pa, pg_indx*PGSIZE, PGSIZE) < 0)
+      panic("swap_out: writeToSwapFile failed");
+    uvmunmap(p->pagetable, v_addr, 1, 1); // Unmap the page and free the memory
+    *pte = *pte | PTE_PG; // Turn on swapped flag
+  }
+  
+  struct page* mem_pgs = p->pg_m.memory_pgs;
+  int found = 0;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if(mem_pgs[i].vaddr == v_addr) {
+      found = 1;
+      mem_pgs[i].vaddr = -1;
+      mem_pgs[i].nfua_counter = 0;
+      mem_pgs[i].lapa_counter = 0xFFFFFFFF;
+
+      // remove pg from the circular list
+      mem_pgs[i].next->prev = mem_pgs[i].prev;
+      mem_pgs[i].prev->next = mem_pgs[i].next;
+
+      // if the pg was the first_added_pg, update it to point to the next added pg
+      if(&mem_pgs[i] == p->pg_m.first_added_pg) {
+        if(mem_pgs[i].next) {
+          p->pg_m.first_added_pg = mem_pgs[i].next;
+        } else {
+          p->pg_m.first_added_pg = 0;
+        } 
+      }
+      
+      mem_pgs[i].next = 0;
+      mem_pgs[i].prev = 0;
+
+      printf("removed page at v_addr %x from memory_pgs of process %d\n", v_addr, p->pid);
+      break;
+    }
+  }
+
+  if(!found) {
+    panic("swap_out: v_addr was not in memory");
+  } 
+  
+  p->pg_m.num_of_pgs_in_memory -= 1;
+
+  *pte = *pte & !PTE_V; // Turn off valid flag
+  
+  
+
+  // Move a page_node* from memory to swapFile,
+  // copy the page to swapFile,
+  // free the memory,
+  // inc num_of_pages_in_swapFile
+  // dec num_of_pages_in_memory
+  // set PTE_PG and turn off PTE_V
+
+  // if to_swapFile == 1, select a page based oin policy, else remove v_addr
+}
+
+void
+swap_in(uint64 v_addr, int from_swapFile)
+{  
+  struct proc* p = myproc();
+
+  if(p->pid < 2) {
+    return;
+  }
+
+  pte_t* pte = walk(p->pagetable, v_addr, 0);
+
+  if(from_swapFile) {
+    uint64 sz;
+    if((sz = uvmalloc(p->pagetable, p->sz, p->sz + PGSIZE)) == 0)
+      panic("choose_and_swap: uvmalloc failed");
+    uint64 new_pg_v_addr = sz - PGSIZE;
+    uint64 new_pg_p_addr = walkaddr(p->pagetable, new_pg_v_addr);
+    
+    int permissions = PTE_FLAGS(*walk(p->pagetable, v_addr, 0));
+    permissions = (permissions & !PTE_PG) | PTE_V; // Turn off swapped flag and on valid flag
+
+
+    uvmunmap(p->pagetable, new_pg_v_addr, 1, 0); // unmmap new p_addr from new v_addr
+    mappages(p->pagetable, v_addr, PGSIZE, new_pg_p_addr, permissions); // map new p_addr to old v_addr
+
+    int index_in_sf;
+    struct page* pgs_in_sf = p->pg_m.swapFile_pgs;
+    int found  = 0;
+    for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+      if(pgs_in_sf[i].vaddr == v_addr) {
+        index_in_sf = i;
+        pgs_in_sf[i].vaddr = -1;
+        found = 1;
+        break;
+      }
+    }
+
+    if(!found) {
+      panic("swap_in: v_addr_to_swap_in not in swapFile");
+    }
+
+    readFromSwapFile(p, (char*)new_pg_p_addr, index_in_sf*PGSIZE, PGSIZE);
+  }
+
+  *pte = *pte | PTE_V;    // Turn on valid flag
+  *pte = *pte & !PTE_PG;  // Turn off swapped flag
+
+  struct page* mem_pgs = p->pg_m.memory_pgs;
+  int found = 0;
+  // int index_in_mem_pgs;
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    if(mem_pgs[i].vaddr == -1) {
+      found = 1;
+      mem_pgs[i].vaddr = v_addr;
+      mem_pgs[i].nfua_counter = 0;
+      mem_pgs[i].lapa_counter = 0xFFFFFFFF;
+
+      // add the page behind the first_added_pg in the circular list
+      struct page* first_pg = p->pg_m.first_added_pg;
+      if(first_pg == 0) {
+        // if it's the first page added in this process
+        p->pg_m.first_added_pg = &mem_pgs[i];
+      } else {
+        first_pg->prev->next = &mem_pgs[i];
+        mem_pgs[i].prev = first_pg->prev;
+        first_pg->prev = &mem_pgs[i];
+        mem_pgs[i].next = first_pg;
+      }
+
+      // index_in_mem_pgs = i;
+      printf("added page at v_addr %x to memory_pgs of process %d\n", v_addr, p->pid);
+      break;
+    }
+  }
+
+  if(!found) {
+    panic("swap_in: no free slots");
+  }
+
+  p->pg_m.num_of_pgs_in_memory += 1;
+
+  // return index_in_mem_pgs;
+}
+
+uint64
+uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  // char *mem;
+  uint64 a;
+  struct proc* p = myproc();
+
+  if(p->pid < 2) {
+    return uvmalloc(pagetable, oldsz, newsz);
+  }
+
+  if(newsz < oldsz)
+    return oldsz;
+
+  oldsz = PGROUNDUP(oldsz);
+  uint64 output = newsz;
+  for(a = oldsz; a < newsz; a += PGSIZE){
+    // If a process allocates more than 32 pages, terminate it
+    if(p->pg_m.num_of_pgs_in_memory + p->pg_m.num_of_pgs_in_swapFile >= MAX_TOTAL_PAGES) {
+      printf("process %s exceeded %d pages\n", p->pid, MAX_TOTAL_PAGES);
+      exit(1);
+    }
+
+    // If there are too many pages in memory, swap one out
+    if(p->pg_m.num_of_pgs_in_memory == MAX_PSYC_PAGES) {
+      uint64 v_addr = choose_pg_to_swap();
+      swap_out(v_addr, 1); // select a page based on policy to move to swapFile
+    }
+
+    // Allocate page in memory
+    output = uvmalloc(pagetable, a, a + PGSIZE);
+    
+    if (output != 0) {
+      // Insert the new page to the first free slot in pg_m.memory_pgs
+      swap_in(a, 0);
+    }
+  }
+
+  return output;
+}
+
+uint64
+uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{  
+  struct proc* p = myproc();
+  if(p->pid < 2) {
+    return uvmdealloc(pagetable, oldsz, newsz);
+  }
+  
+  uint64 output = oldsz;
+
+  for(uint64 a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE){
+    output = uvmdealloc(pagetable, a + PGSIZE, a);
+    // Update p->pg_metadata
+    swap_out(a, 0); 
+  }
+
+  return output;
+}
+
+uint64 
+choose_pg_to_swap()
+{
+  struct proc* p = myproc();
+  return p->pg_m.memory_pgs[4].vaddr;
+}
+
+uint64
+nfua(){
+  struct page* memory_pgs = myproc()->pg_m.memory_pgs;
+  uint64 to_swap_out = 0;
+  uint64 curr_min_counter = -1;
+
+  for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    // get curr page
+    struct page pg = memory_pgs[i];
+
+    if(pg.vaddr != -1){
+      if(curr_min_counter == -1 || curr_min_counter > pg.nfua_counter){
+        curr_min_counter = pg.nfua_counter;
+        to_swap_out = pg.vaddr;
+      }
+    }
+  }
+
+  return to_swap_out;
+}
+
+// Brian Kernighan's algorithm for counting the number of ones in a binary number
+int
+num_of_ones(int num)
+{
+  int counter = 0;
+  while(num != 0) {
+    num  = num & (num-1);
+    counter += 1;
+  }
+
+  return counter;
+}
+
+uint64
+lapa()
+{
+  struct page* mem_pgs = myproc()->pg_m.memory_pgs;
+  uint64 min_lapa_counter = 0xFFFFFFFF; // max num of ones in an int
+  uint64 chosen_vaddr = mem_pgs[3].vaddr; // just a place holder
+
+  for (int i = 0; i < MAX_PSYC_PAGES; i++) {
+    struct page pg = mem_pgs[i];
+    if(pg.vaddr != -1) {
+      int curr_num_of_ones = num_of_ones(pg.lapa_counter);
+      int min_num_of_ones = num_of_ones(min_lapa_counter);
+      if( curr_num_of_ones < min_num_of_ones || (curr_num_of_ones == min_num_of_ones && pg.lapa_counter <= min_lapa_counter)) {
+        min_lapa_counter = pg.lapa_counter;
+        chosen_vaddr = pg.vaddr;
+      }
+    }
+  }
+
+  return chosen_vaddr;
+}
+
+uint64
+sc_fifo()
+{
+  struct proc* p = myproc();
+  struct page* iter = p->pg_m.first_added_pg;
+  for(;;) {
+    pte_t* pte = walk(p->pagetable, iter->vaddr, 0);
+    int reference_bit = *pte & PTE_A;
+    if(reference_bit == 0) {
+      // // remove page from circular list
+      // iter->prev->next = iter->next; 
+      // iter->next->prev = iter->prev;
+      // // if it was the first_added_pg, update it to point to the next added page
+      // if(iter == p->pg_m.first_added_pg) {
+      //   p->pg_m.first_added_pg = iter->next;
+      // }
+      return iter->vaddr;
+
+    } else {
+      *pte = *pte & !PTE_A; // zero the reference bit
+      iter = iter->next;
+    }
   }
 }

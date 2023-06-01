@@ -4,6 +4,8 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
+struct pg_metadata;
+struct pg_node;
 struct spinlock;
 struct sleeplock;
 struct stat;
@@ -33,7 +35,8 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
-
+int             kfileread(struct file*, uint64, int n);
+int             kfilewrite(struct file*, uint64, int n);
 // fs.c
 void            fsinit(int);
 int             dirlink(struct inode*, char*, uint);
@@ -53,6 +56,10 @@ int             readi(struct inode*, int, uint64, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 void            itrunc(struct inode*);
+int		        createSwapFile(struct proc* p);
+int	          	readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size);
+int		        writeToSwapFile(struct proc* p, char* buffer, uint placeOnFile, uint size);
+int		        removeSwapFile(struct proc* p);
 
 // ramdisk.c
 void            ramdiskinit(void);
@@ -104,7 +111,12 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
-
+void            choose_and_swap(uint64 v_addr_to_swap_in);
+void            swap_out(uint64 v_addr, int to_swapFile);
+void            swap_in(uint64 v_addr, int from_swapFile);
+uint64          uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+uint64          uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+uint64          choose_pg_to_swap(void);
 // swtch.S
 void            swtch(struct context*, struct context*);
 
@@ -139,6 +151,10 @@ int             fetchstr(uint64, char*, int);
 int             fetchaddr(uint64, uint64*);
 void            syscall();
 
+// sysfile
+struct inode*	create(char *path, short type, short major, short minor);
+int				isdirempty(struct inode *dp);
+
 // trap.c
 extern uint     ticks;
 void            trapinit(void);
@@ -167,6 +183,7 @@ void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
 uint64          walkaddr(pagetable_t, uint64);
+pte_t *         walk(pagetable_t pagetable, uint64 va, int alloc);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
