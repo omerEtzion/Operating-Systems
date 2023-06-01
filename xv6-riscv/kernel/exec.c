@@ -124,7 +124,7 @@ exec(char *path, char **argv)
     struct page* new_sf_pgs = p->pg_m.swapFile_pgs;
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
       if(old_sf_pgs[i].vaddr != new_sf_pgs[i].vaddr) {
-        swap_in(&old_sf_pgs[i], 1);
+        swap_in(old_sf_pgs[i].vaddr, 1);
       }
     }
 
