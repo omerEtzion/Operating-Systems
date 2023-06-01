@@ -943,5 +943,21 @@ choose_pg_to_swap()
 
 uint64
 nfua(){
-  
+  struct page* memory_pgs = myproc()->pg_m.mem_pgs;
+  uint64 to_swap_out = 0;
+  uint64 curr_min_counter = -1;
+
+  for(int i = 0; i < MAX_PSYC_PAGES; i++){
+    // get curr page
+    struct page pg = memory_pgs[i];
+
+    if(pg.v_addr != -1){
+      if(curr_min_counter == -1 || curr_min_counter > pg.nfua_counter){
+        curr_min_counter = pg.nfua_counter;
+        to_swap_out = pg.v_addr;
+      }
+    }
+  }
+
+  return to_swap_out;
 }
