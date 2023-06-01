@@ -100,17 +100,18 @@ usertrap(void)
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2){
     for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-      if(p->pg_m.memory_pgs[i]->v_addr != -1){
+      struct page pg = p->pg_m.memory_pgs[i];
+      if(pg.vaddr != -1){
         // sift right by one bit
-        p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter >> 1;
-        p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter >> 1;
+        pg.nfua_counter = pg.nfua_counter >> 1;
+        pg.lapa_counter = pg.lapa_counter >> 1;
 
         // add 1 to msb
-        pte_t* pte = walk(p->pagetable, p->pg_m.memory_pgs[i]->v_addr, 0);
+        pte_t* pte = walk(p->pagetable, pg.vaddr, 0);
         if(*pte & PTE_A){
-          int long_bits = sizeof(nfua_counter) * 8;
-          p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter | (1L << (long_bits - 1));
-          p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter | (1L << (long_bits - 1));
+          int long_bits = sizeof(pg.nfua_counter) * 8;
+          pg.nfua_counter = pg.nfua_counter | (1L << (long_bits - 1));
+          pg.lapa_counter = pg.lapa_counter | (1L << (long_bits - 1));
         }
       }
     }
@@ -189,19 +190,19 @@ kerneltrap()
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING){
-      struct proc *p = myproc();
       for(int i = 0; i < MAX_PSYC_PAGES; i++) {
-        if(p->pg_m.memory_pgs[i]->v_addr != -1){
+        struct page pg = myproc()->pg_m.memory_pgs[i];
+        if(pg.vaddr != -1){
           // sift right by one bit
-          p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter >> 1;
-          p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter >> 1;
+          pg.nfua_counter = pg.nfua_counter >> 1;
+          pg.lapa_counter = pg.lapa_counter >> 1;
 
           // add 1 to msb
-          pte_t* pte = walk(p->pagetable, p->pg_m.memory_pgs[i]->v_addr, 0);
+          pte_t* pte = walk(myproc()->pagetable, pg.vaddr, 0);
           if(*pte & PTE_A){
-            int long_bits = sizeof(nfua_counter) * 8;
-            p->pg_m.memory_pgs[i].nfua_counter = p->pg_m.memory_pgs[i].nfua_counter | (1L << (long_bits - 1));
-            p->pg_m.memory_pgs[i].lapa_counter = p->pg_m.memory_pgs[i].lapa_counter | (1L << (long_bits - 1));
+            int long_bits = sizeof(pg.nfua_counter) * 8;
+            pg.nfua_counter = pg.nfua_counter | (1L << (long_bits - 1));
+            pg.lapa_counter = pg.lapa_counter | (1L << (long_bits - 1));
           }
         }
     }
