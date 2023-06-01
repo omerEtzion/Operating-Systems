@@ -995,13 +995,26 @@ nfua(){
   return to_swap_out;
 }
 
+// Brian Kernighan's algorithm for counting the number of ones in a binary number
+int
+num_of_ones(int num)
+{
+  int counter = 0;
+  while(num != 0) {
+    num  = num & (num-1);
+    counter += 1;
+  }
+
+  return counter;
+}
+
 uint64
 lapa()
 {
-  uint64 min_lapa_counter = 0xFFFFFFFF; // max num of ones in an int
-  uint64 chosen_vaddr;
-
   struct page* mem_pgs = myproc()->pg_m.memory_pgs;
+  uint64 min_lapa_counter = 0xFFFFFFFF; // max num of ones in an int
+  uint64 chosen_vaddr = mem_pgs[3].vaddr; // just a place holder
+
   for (int i = 0; i < MAX_PSYC_PAGES; i++) {
     struct page pg = mem_pgs[i];
     if(pg.vaddr != -1) {
@@ -1015,19 +1028,6 @@ lapa()
   }
 
   return chosen_vaddr;
-}
-
-// Brian Kernighan's algorithm for counting the number of ones in a binary number
-int
-num_of_ones(int num)
-{
-  int counter = 0;
-  while(num != 0) {
-    num  = num & (num-1);
-    counter += 1;
-  }
-
-  return counter;
 }
 
 uint64
