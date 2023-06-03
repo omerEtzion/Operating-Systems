@@ -512,6 +512,7 @@ scheduler(void)
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
+        update_counters();
         c->proc = 0;
       }
       release(&p->lock);
