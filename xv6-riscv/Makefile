@@ -1,3 +1,12 @@
+NONE := 0
+NFUA := 1
+LAPA := 2
+SCFIFO := 3
+
+ifndef SWAP_ALGO
+SWAP_ALGO := $(SCFIFO)
+endif
+
 K=kernel
 U=user
 
@@ -71,10 +80,12 @@ ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
 
+CFLAGS += -DSWAP_ALGO=$(SWAP_ALGO) -DNONE=$(NONE) -DNFUA=$(NFUA) -DLAPA=$(LAPA) -DSCFIFO=$(SCFIFO)
+
 LDFLAGS = -z max-page-size=4096
 
 $K/kernel: $(OBJS) $K/kernel.ld $U/initcode
-	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
+	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS)
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
 

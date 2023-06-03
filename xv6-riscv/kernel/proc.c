@@ -686,13 +686,19 @@ procdump(void)
   }
 }
 
+// extern int SWAP_ALGO;
+// extern int NONE;
+// extern int NFUA;
+// extern int LAPA;
+// extern int SCFIFO;
+
 void
 choose_and_swap(uint64 v_addr_to_swap_in)
 {
   
   struct proc* p = myproc();
 
-  if(p->pid < 2) {
+  if(p->pid < 2 || SWAP_ALGO == NONE) {
     return;
   }
   
@@ -742,7 +748,7 @@ swap_out(uint64 v_addr, int to_swapFile)
 {
   struct proc* p = myproc();
 
-  if(p->pid < 2) {
+  if(p->pid < 2 || SWAP_ALGO == NONE) {
     return;
   }
 
@@ -828,7 +834,7 @@ swap_in(uint64 v_addr, int from_swapFile)
 {  
   struct proc* p = myproc();
 
-  if(p->pid < 2) {
+  if(p->pid < 2 || SWAP_ALGO == NONE) {
     return;
   }
 
@@ -914,7 +920,7 @@ uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   uint64 a;
   struct proc* p = myproc();
 
-  if(p->pid < 2) {
+  if(p->pid < 2 || SWAP_ALGO == NONE) {
     return uvmalloc(pagetable, oldsz, newsz);
   }
 
@@ -952,7 +958,7 @@ uint64
 uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {  
   struct proc* p = myproc();
-  if(p->pid < 2) {
+  if(p->pid < 2 || SWAP_ALGO == NONE) {
     return uvmdealloc(pagetable, oldsz, newsz);
   }
   
@@ -965,13 +971,6 @@ uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   }
 
   return output;
-}
-
-uint64 
-choose_pg_to_swap()
-{
-  struct proc* p = myproc();
-  return p->pg_m.memory_pgs[4].vaddr;
 }
 
 uint64
@@ -1053,4 +1052,20 @@ sc_fifo()
       iter = iter->next;
     }
   }
+}
+
+
+uint64 
+choose_pg_to_swap()
+{
+  if(SWAP_ALGO == NFUA)
+    return nfua();
+  else if (SWAP_ALGO == LAPA)
+    return lapa();
+  else if(SWAP_ALGO == SCFIFO)
+    return sc_fifo();
+  else
+    panic("choose_pg_to_swap: trying to swap a page with paging disabled");
+  return -1;
+  // return p->pg_m.memory_pgs[4].vaddr;
 }
