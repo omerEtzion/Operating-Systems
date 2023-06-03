@@ -458,6 +458,30 @@ wait(uint64 addr)
   }
 }
 
+void
+update_counters()
+{
+  struct proc* p = myproc();
+
+  for(int i = 0; i < MAX_PSYC_PAGES; i++) {
+    struct page* pg = &p->pg_m.memory_pgs[i];
+    if(pg->vaddr != -1){
+      // sift right by one bit
+      pg->nfua_counter = pg->nfua_counter >> 1;
+      pg->lapa_counter = pg->lapa_counter >> 1;
+
+      // add 1 to msb
+      pte_t* pte = walk(p->pagetable, pg->vaddr, 0);
+      if(*pte & PTE_A){
+        int long_bits = sizeof(pg->nfua_counter) * 8;
+        pg->nfua_counter = pg->nfua_counter | (1L << (long_bits - 1));
+        pg->lapa_counter = pg->lapa_counter | (1L << (long_bits - 1));
+        *pte = *pte & !PTE_A; // zero the bit
+      }
+    }
+  }
+}
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
