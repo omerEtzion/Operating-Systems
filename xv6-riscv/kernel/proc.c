@@ -144,7 +144,7 @@ found:
     return 0;
   }
 
-  if(p->pid >= 2) {
+  if(p->pid > 2 && SWAP_ALGO != NONE) {
     // Create the process' swapFile
     if(createSwapFile(p) == -1){
       freeproc(p);
@@ -723,7 +723,7 @@ choose_and_swap(uint64 v_addr_to_swap_in)
   
   struct proc* p = myproc();
 
-  if(p->pid < 2 || SWAP_ALGO == NONE) {
+  if(p->pid <= 2 || SWAP_ALGO == NONE) {
     return;
   }
   
@@ -773,7 +773,7 @@ swap_out(uint64 v_addr, int to_swapFile)
 {
   struct proc* p = myproc();
 
-  if(p->pid < 2 || SWAP_ALGO == NONE) {
+  if(p->pid <= 2 || SWAP_ALGO == NONE) {
     return;
   }
 
@@ -859,7 +859,7 @@ swap_in(uint64 v_addr, int from_swapFile)
 {  
   struct proc* p = myproc();
 
-  if(p->pid < 2 || SWAP_ALGO == NONE) {
+  if(p->pid <= 2 || SWAP_ALGO == NONE) {
     return;
   }
 
@@ -945,7 +945,7 @@ uvmalloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   uint64 a;
   struct proc* p = myproc();
 
-  if(p->pid < 2 || SWAP_ALGO == NONE) {
+  if(p->pid <= 2 || SWAP_ALGO == NONE) {
     return uvmalloc(pagetable, oldsz, newsz);
   }
 
@@ -983,7 +983,7 @@ uint64
 uvmdealloc_wrapper(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
 {  
   struct proc* p = myproc();
-  if(p->pid < 2 || SWAP_ALGO == NONE) {
+  if(p->pid <= 2 || SWAP_ALGO == NONE) {
     return uvmdealloc(pagetable, oldsz, newsz);
   }
   
