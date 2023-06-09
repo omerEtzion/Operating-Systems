@@ -188,7 +188,7 @@ fileseek(struct file* f, int offset, int whence)
     return -1;
   
   int new_offset = offset;
-  if(whence == SEEK_CURR) 
+  if(whence == SEEK_CUR) 
     new_offset += f->off; 
   if(new_offset < 0) {
     new_offset = 0;

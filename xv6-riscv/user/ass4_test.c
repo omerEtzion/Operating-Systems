@@ -37,28 +37,28 @@ void seektest(void)
 		exit(1);
 	}
 
-	// test SEEK_CURR
-	if (seek(fd, 3, SEEK_CURR) < 0)
+	// test SEEK_CUR
+	if (seek(fd, 3, SEEK_CUR) < 0)
 	{
-		printf("seek(fd, 3, SEEK_CURR) failed\n");
+		printf("seek(fd, 3, SEEK_CUR) failed\n");
 		exit(1);
 	}
 
 	read(fd, buff, 1);
 	if (buff[0] == '7')
 	{
-		printf("SEEK_CURR test passed\n");
+		printf("SEEK_CUR test passed\n");
 	}
 	else
 	{
-		printf("SEEK_CURR test failed\n");
+		printf("SEEK_CUR test failed\n");
 		exit(1);
 	}
 
 	// test seeking before start of file
-	if (seek(fd, -12, SEEK_CURR) < 0)
+	if (seek(fd, -12, SEEK_CUR) < 0)
 	{
-		printf("seek(fd, -12, SEEK_CURR) failed\n");
+		printf("seek(fd, -12, SEEK_CUR) failed\n");
 		exit(1);
 	}
 
@@ -74,9 +74,9 @@ void seektest(void)
 	}
 
 	// test seeking after end of file
-	if (seek(fd, 13, SEEK_CURR) < 0)
+	if (seek(fd, 13, SEEK_CUR) < 0)
 	{
-		printf("seek(fd, 5, SEEK_CURR) failed\n");
+		printf("seek(fd, 5, SEEK_CUR) failed\n");
 		exit(1);
 	}
 
@@ -154,15 +154,8 @@ void randomtest(void)
 	c = 0x2A;
 	write(fd, &c, 1);
 
-	// char buff1[255];
-	// read(fd, buff1, 255);
+	int fd1 = open("concurrency_test.txt", O_RDWR | O_CREATE);
 
-	// for(int i = 0; i < 255; i++) {
-	// 	printf("%x", buff1[i]);
-	// }
-	// printf("\n\n");
-
-	char* buffs[5][51];
 	int pids[5];
 	int pid;
 
@@ -170,17 +163,11 @@ void randomtest(void)
 		// create 5 threads that concurrently read from the device
 		pid = fork();
 		if(pid == 0) {
-			// printf("started reading thread %d\n", i);
-			int n = read(fd, buffs[0], 51);
-			// printf("finished reading thread %d, read %d bytes\n", i, n);
-			n += 2;
+			char buff1[51];
+			read(fd, &buff1, 51);
 
-			for(int j = 0; j < 51; j++) {
-				printf("%x", buffs[0][j]);
-			}
-			printf("\n\n");
+			write(fd1, &buff1, 51);
 
-			// buffs[i] = buff1;
 			exit(0);
 		} else {
 			pids[i] = pid;
@@ -189,89 +176,41 @@ void randomtest(void)
 
 	for(int i = 0; i < 5; i++) {
 		// wait for them to finish
-		// printf("waiting for thread %d to finish\n", i);
 		wait(&pids[i]);
 	}
 
-	for(int i = 0; i < 5; i++) {
-		printf("buff[%d] = ", i);
-		for(int j = 0; j < 51; j++) {
-			printf("%x", buffs[i][j]);
-		}
-		printf("\n\n");
-	}
+	char buffs[5][51];
+	seek(fd1, 0, SEEK_SET);
 	
+	for(int i = 0; i < 5; i++) {
+		read(fd1, &buffs[i], 51);
+	}
+
 	// for(int i = 0; i < 5; i++) {
-	// 	for(int j = i+1; j < 5; j++) {
-	// 		for(int k = 0; k < 51; k++) {
-	// 			for(int l = k+1; l < 51; l++) {
-	// 				if(buffs[i][k] == buffs[j][l]) {
-	// 					printf("repeated char %x at index %d of buff %d and index %d of buff %d\n", buffs[i][k], k, i, l, j);
-	// 					exit(1);
-	// 				}
-	// 			}
-	// 		}
+	// 	printf("buffs[%d] = ", i);
+	// 	for(int j = 0; j < 51; j++) {
+	// 		printf("%x", buffs[i][j]);
 	// 	}
+	// 	printf("\n\n");
 	// }
-
-
-
-	// char buff1[128];
-	// char buff2[127];
-	// int n1 = 0;
-	// int n2 = 0;
-	// int pid;
-	// int num_of_tests = 20;
-
-	// while (num_of_tests > 0)
-	// {
-	// 	pid = fork();
-
-	// 	// read
-	// 	if (pid == 0)
-	// 	{
-	// 		n1 = read(fd, &buff1, 42);
-	// 		sleep(1); // yield cpu time to the other thread
-	// 		n1 += read(fd, &buff1, 43);
-	// 		sleep(1); // yield cpu time to the other thread
-	// 		n1 += read(fd, &buff1, 43);
-	// 		exit(0);
-	// 	}
-	// 	else
-	// 	{
-	// 		n2 = read(fd, &buff2, 42);
-	// 		sleep(1); // yield cpu time to the other thread
-	// 		n2 += read(fd, &buff2, 42);
-	// 		sleep(1); // yield cpu time to the other thread
-	// 		n2 += read(fd, &buff2, 43);
-	// 	}
-
-	// 	// wait for child to finish
-	// 	wait(&pid);
-
-	// 	// check for repeated chars
-	// 	i = 0;
-	// 	while (i < n2)
-	// 	{
-	// 		int j = 0;
-	// 		while (j < n1)
-	// 		{
-	// 			if (buff2[i] == buff1[j])
-	// 			{
-	// 				printf("repeated char %x at indexes %d and %d\n", buff2[i], i, j);
-	// 				exit(1);
-	// 			}
-	// 			j++;
-	// 		}
-	// 		i++;
-	// 	}
-
-	// 	num_of_tests--;
-	// }
+	
+	for(int i = 0; i < 5; i++) {
+		for(int j = i+1; j < 5; j++) {
+			for(int k = 0; k < 51; k++) {
+				for(int l = k+1; l < 51; l++) {
+					if(buffs[i][k] == buffs[j][l]) {
+						printf("repeated char %x at index %d of buff %d and index %d of buff %d\n", buffs[i][k], k, i, l, j);
+						exit(1);
+					}
+				}
+			}
+		}
+	}
 
 	printf("concurrency test passed\n");
 
 	printf("ALL RANDOM TESTS PASSED\n");
+	close(fd1);
 	close(fd);
 }
 
@@ -285,3 +224,4 @@ void main(void)
 	printf("ALL TESTS PASSED\n");
 	exit(0);
 }
+
