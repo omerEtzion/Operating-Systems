@@ -23,6 +23,10 @@ main(void)
   dup(0);  // stdout
   dup(0);  // stderr
 
+  if(open("random", O_RDWR) < 0){
+    mknod("random", RANDOM, 0);
+  }
+
   for(;;){
     printf("init: starting sh\n");
     pid = fork();
