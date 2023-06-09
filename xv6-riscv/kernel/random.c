@@ -9,49 +9,68 @@
 #include "defs.h"
 #include "proc.h"
 
-static uint8_t random_seed = 0x2A; // Shared seed value
+static uint8 lfsr = 0x2A; // Shared seed value
 
-struct {
-  struct spinlock lock;
-  
-  // input
+struct
+{
+	struct spinlock lock;
+
+	// input
 #define INPUT_BUF 128
-  char buf[INPUT_BUF];
-  uint r;  // Read index
-  uint w;  // Write index
-  uint e;  // Edit index
+	char buf[INPUT_BUF];
+	uint r; // Read index
+	uint w; // Write index
+	uint e; // Edit index
 } rand;
 
-
-uint8_t lfsr_char(uint8_t lfsr) {
-    uint8_t bit;
-    bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 4)) & 0x01;
-    lfsr = (lfsr >> 1) | (bit << 7);
-    return lfsr;
+uint8 lfsr_char()
+{
+	uint8 bit;
+	bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 4)) & 0x01;
+	lfsr = (lfsr >> 1) | (bit << 7);
+	return lfsr;
 }
 
-int randomwrite(int user_src, uint64 src, int n) {
+int randomwrite(int user_src, uint64 src, int n)
+{
 
-    if (n != 1)
-        return -1;
+	if (n != 1)
+		return -1;
 
-    char c;
-    if (either_copyin(&c, user_src, src, 1) == -1)
-        return -1;
+	uint8 c;
+	if (either_copyin(&c, user_src, src, 1) == -1)
+		return -1;
 
-    acquire(&rand.lock);
-    random_seed = c;
-    release(&rand.lock);
+	acquire(&rand.lock);
+	lfsr = c;
+	release(&rand.lock);
 
-    return 1;
-
+	return 1;
 }
 
-int randomread(int user_dst, uint64 dst, int n) {
-    
+int randomread(int user_dst, uint64 dst, int n)
+{
+	int target = n;
+	while(n > 0) {
+		acquire(&rand.lock);
+		if(either_copyout(user_dst, dst, &lfsr, 1) == -1)
+      break;
+		// printf("\n%x\n", lfsr);
+		dst++;
+    --n;
+		lfsr_char();
+		release(&rand.lock);
+	}
 
+	return target - n;
 }
 
-void randominit(void) {
-
+void randominit(void)
+{
+	initlock(&rand.lock, "rand");
+	lfsr = 0x2A;
+	// connect read and write system calls
+  // to randomread and randomwrite.
+  devsw[RANDOM].read = randomread;
+  devsw[RANDOM].write = randomwrite;
 }
