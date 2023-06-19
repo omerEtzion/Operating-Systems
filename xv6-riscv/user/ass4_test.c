@@ -108,7 +108,6 @@ void randomtest(void)
 		printf("read failed: wanted %d bytes, read %d bytes\n", 255, n);
 		exit(1);
 	}
-	printf("read %d random chars\n", n);
 
 	int i = 0;
 	while (i < n)
@@ -186,14 +185,6 @@ void randomtest(void)
 		read(fd1, &buffs[i], 51);
 	}
 
-	// for(int i = 0; i < 5; i++) {
-	// 	printf("buffs[%d] = ", i);
-	// 	for(int j = 0; j < 51; j++) {
-	// 		printf("%x", buffs[i][j]);
-	// 	}
-	// 	printf("\n\n");
-	// }
-	
 	for(int i = 0; i < 5; i++) {
 		for(int j = i+1; j < 5; j++) {
 			for(int k = 0; k < 51; k++) {

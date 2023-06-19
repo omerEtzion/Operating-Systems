@@ -197,8 +197,6 @@ fileseek(struct file* f, int offset, int whence)
     new_offset = f->ip->size;
   }
 
-  //TODO: need to lock anything?
-
   f->off = new_offset;
   return 0;
 }

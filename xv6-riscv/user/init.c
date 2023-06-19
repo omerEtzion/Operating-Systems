@@ -23,6 +23,7 @@ main(void)
   dup(0);  // stdout
   dup(0);  // stderr
 
+  //create the random file
   if(open("random", O_RDWR) < 0){
     mknod("random", RANDOM, 0);
   }

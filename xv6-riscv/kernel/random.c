@@ -51,13 +51,13 @@ int randomwrite(int user_src, uint64 src, int n)
 int randomread(int user_dst, uint64 dst, int n)
 {
 	int target = n;
-	while(n > 0) {
+	while (n > 0)
+	{
 		acquire(&rand.lock);
-		if(either_copyout(user_dst, dst, &lfsr, 1) == -1)
-      break;
-		// printf("\n%x\n", lfsr);
+		if (either_copyout(user_dst, dst, &lfsr, 1) == -1)
+			break;
 		dst++;
-    --n;
+		--n;
 		lfsr_char();
 		release(&rand.lock);
 	}
@@ -70,7 +70,7 @@ void randominit(void)
 	initlock(&rand.lock, "rand");
 	lfsr = 0x2A;
 	// connect read and write system calls
-  // to randomread and randomwrite.
-  devsw[RANDOM].read = randomread;
-  devsw[RANDOM].write = randomwrite;
+	// to randomread and randomwrite.
+	devsw[RANDOM].read = randomread;
+	devsw[RANDOM].write = randomwrite;
 }
